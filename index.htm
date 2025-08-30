@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wallet Sweep — ETH & USDT (Ethereum)</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0b0f14;--panel:#121823;--ink:#e9eef8;--muted:#9fb0ca;--line:#1f2a3a;--blue:#3ca0ff;--green:#3ddc97;--red:#ff6b6b;--amber:#ffd166}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  .wrap{max-width:880px;margin:36px auto;padding:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  h1{margin:0 0 12px;font-size:24px}
+  p{margin:6px 0;color:var(--muted)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .grow{flex:1}
+  .btn{appearance:none;border:none;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px;background:#1b2533;color:var(--ink);border:1px solid var(--line)}
+  .btn:hover{transform:translateY(-1px);border-color:#2b3a52}
+  .btn.primary{background:linear-gradient(180deg,#2c6cff,#1b58cc);border-color:#2a63e6}
+  .btn.good{background:linear-gradient(180deg,#20c997,#12a97d);border-color:#26d6a4}
+  .btn.warn{background:linear-gradient(180deg,#ff9b3c,#ef7b00);border-color:#ffad52}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+  .col6{grid-column:span 6}
+  .col12{grid-column:span 12}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:12px;color:var(--muted)}
+  .field input{background:#0e141d;border:1px solid var(--line);color:var(--ink);padding:12px;border-radius:12px;font-size:14px}
+  .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#0e141d;border:1px solid var(--line);color:var(--muted);font-size:12px}
+  .log{max-height:260px;overflow:auto;background:#0c1118;border:1px solid var(--line);border-radius:12px;padding:12px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:12.5px;white-space:pre-wrap}
+  a{color:var(--blue);text-decoration:none}
+  .ok{color:var(--green)} .bad{color:var(--red)} .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Wallet Sweep — Ethereum → Main</h1>
+    <p>Під’єднай гаманець (MetaMask або Trust Wallet через WalletConnect) і перекинь <b>ETH</b> та <b>USDT (ERC‑20)</b> на головну адресу. Скрипт працює тільки в мережі Ethereum Mainnet.</p>
+
+    <div class="row" style="margin:14px 0 10px">
+      <button id="btnConnect" class="btn primary">Під’єднати гаманець</button>
+      <button id="btnDisconnect" class="btn" style="display:none">Від’єднати</button>
+      <span id="netPill" class="pill">Chain: —</span>
+      <span id="addrPill" class="pill">Адреса: —</span>
+    </div>
+
+    <div class="grid" style="margin-top:14px">
+      <div class="col12 field">
+        <label>Головна адреса (куди свіпати)</label>
+        <input id="dest" placeholder="0x…" value="0xA4e72c8d57DdB3306D6CFbD25B8F98F3d3eC6EC0" />
+      </div>
+      <div class="col6 field">
+        <label>USDT (ERC‑20) контракт — Ethereum</label>
+        <input id="usdt" value="0xdAC17F958D2ee523a2206206994597C13D831ec7" />
+      </div>
+      <div class="col6 field">
+        <label>Мінімальний резерв ETH на газ (не чіпати)</label>
+        <input id="reserve" value="0.00012" />
+      </div>
+    </div>
+
+    <div class="row" style="margin:14px 0">
+      <button id="btnBalances" class="btn">Показати баланси</button>
+      <button id="btnSweepUSDT" class="btn good">Свіп USDT</button>
+      <button id="btnSweepETH" class="btn warn">Свіп ETH</button>
+      <button id="btnSweepBoth" class="btn primary">Свіп ВСЕ</button>
+    </div>
+
+    <div id="balances" class="row" style="gap:18px;margin-bottom:10px;display:none"></div>
+
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<!-- Ethers v5 -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+<!-- Web3Modal v1 (legacy) + WalletConnect provider (works with Trust Wallet QR) -->
+<script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
+<script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+<script>
+(function(){
+  const logEl = document.getElementById('log');
+  const addrPill = document.getElementById('addrPill');
+  const netPill = document.getElementById('netPill');
+  const balancesBox = document.getElementById('balances');
+  const inpDest = document.getElementById('dest');
+  const inpUSDT = document.getElementById('usdt');
+  const inpReserve = document.getElementById('reserve');
+
+  let web3Modal, extProvider, provider, signer, userAddr, chainId;
+
+  const ERC20_ABI = [
+    'function balanceOf(address) view returns (uint256)',
+    'function decimals() view returns (uint8)',
+    'function symbol() view returns (string)',
+    'function transfer(address to, uint256 amount) returns (bool)'
+  ];
+
+  const rpcMap = { 1: 'https://rpc.ankr.com/eth' };
+
+  function uiLog(msg){
+    const time = new Date().toLocaleTimeString();
+    logEl.textContent += `[${time}] ${msg}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function fmt(n, d=6){ try { return Number(n).toFixed(d); } catch(e){ return String(n) } }
+
+  function explorer(){ return 'https://etherscan.io'; }
+
+  async function ensureMainnet(){
+    if (chainId === 1) return true;
+    uiLog('⚠️ Не mainnet. Пробуємо перемкнути…');
+    try{
+      await extProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
+      return true;
+    }catch(e){ uiLog('❌ Перемкнути не вдалося: ' + (e?.message||e)); return false; }
+  }
+
+  async function connect(){
+    // Web3Modal init
+    const providerOptions = {
+      walletconnect: {
+        package: window.WalletConnectProvider.default,
+        options: {
+          rpc: rpcMap,
+          chainId: 1
+        }
+      }
+    };
+    web3Modal = new window.Web3Modal.default({ cacheProvider: false, providerOptions });
+
+    extProvider = await web3Modal.connect();
+    provider = new ethers.providers.Web3Provider(extProvider, 'any');
+    signer = provider.getSigner();
+
+    const network = await provider.getNetwork();
+    chainId = network.chainId;
+    userAddr = await signer.getAddress();
+
+    addrPill.textContent = 'Адреса: ' + userAddr.slice(0,8) + '…' + userAddr.slice(-6);
+    netPill.textContent = 'Chain: ' + (network.name || chainId) + ` (#${chainId})`;
+    document.getElementById('btnDisconnect').style.display = 'inline-flex';
+    uiLog('✅ Під’єднано: ' + userAddr + ` (chainId=${chainId})`);
+
+    extProvider.on('accountsChanged', ()=>location.reload());
+    extProvider.on('chainChanged', ()=>location.reload());
+  }
+
+  async function disconnect(){
+    if (extProvider && extProvider.close) try { await extProvider.close(); } catch(e){}
+    provider = signer = extProvider = null;
+    userAddr = chainId = undefined;
+    addrPill.textContent = 'Адреса: —';
+    netPill.textContent = 'Chain: —';
+    document.getElementById('btnDisconnect').style.display = 'none';
+    uiLog('🔌 Від’єднано');
+  }
+
+  async function getEthBalance(){
+    const balWei = await provider.getBalance(userAddr);
+    return Number(ethers.utils.formatEther(balWei));
+  }
+
+  async function getErc20Balance(token){
+    const c = new ethers.Contract(token, ERC20_ABI, provider);
+    const [dec, sym, bal] = await Promise.all([
+      c.decimals().catch(()=>18),
+      c.symbol().catch(()=>''),
+      c.balanceOf(userAddr)
+    ]);
+    return { symbol: sym||'TOKEN', decimals: dec, raw: bal, human: Number(ethers.utils.formatUnits(bal, dec)) };
+  }
+
+  async function showBalances(){
+    balancesBox.style.display = 'flex';
+    balancesBox.innerHTML = '';
+    const eth = await getEthBalance();
+    const usdt = await getErc20Balance(inpUSDT.value.trim());
+
+    const card = (title, value)=>`<div class="card" style="flex:1;min-width:260px"><div style="font-weight:700;margin-bottom:6px">${title}</div><div style="font-size:22px">${fmt(value,6)}</div></div>`;
+    balancesBox.innerHTML = card('ETH баланс', eth) + card('USDT баланс', usdt.human);
+    uiLog(`ℹ️ ETH: ${fmt(eth)} | USDT: ${fmt(usdt.human,2)}`);
+  }
+
+  async function sweepETH(){
+    if (!(await ensureMainnet())) return;
+    const dest = inpDest.value.trim();
+    if (!ethers.utils.isAddress(dest)) return uiLog('❌ Некоректна адреса призначення');
+
+    const reserve = Number(inpReserve.value || '0.00012');
+    const balWei = await provider.getBalance(userAddr);
+    const feeData = await provider.getFeeData();
+
+    const gasLimit = ethers.BigNumber.from(21000);
+    const feePerUnit = feeData.maxFeePerGas || feeData.gasPrice || ethers.utils.parseUnits('5','gwei');
+    const fee = gasLimit.mul(feePerUnit);
+
+    const reserveWei = ethers.utils.parseEther(String(reserve));
+    let value = balWei.sub(fee).sub(reserveWei);
+    if (value.lte(0)) return uiLog('⚠️ Мало ETH для газу — свіп пропущено');
+
+    const txParams = feeData.maxFeePerGas ? {
+      to: dest,
+      value,
+      maxFeePerGas: feeData.maxFeePerGas,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || ethers.utils.parseUnits('1.5','gwei'),
+      gasLimit
+    } : { to: dest, value, gasPrice: feePerUnit, gasLimit };
+
+    const tx = await signer.sendTransaction(txParams);
+    uiLog('🚀 ETH tx: ' + tx.hash + ' \n   ' + explorer() + '/tx/' + tx.hash);
+  }
+
+  async function sweepUSDT(){
+    if (!(await ensureMainnet())) return;
+    const dest = inpDest.value.trim();
+    const token = inpUSDT.value.trim();
+    if (!ethers.utils.isAddress(dest) || !ethers.utils.isAddress(token)) return uiLog('❌ Адреса призначення або контракт некоректні');
+
+    const c = new ethers.Contract(token, ERC20_ABI, signer);
+    const [dec, sym, bal] = await Promise.all([
+      c.decimals().catch(()=>6),
+      c.symbol().catch(()=>"USDT"),
+      c.balanceOf(userAddr)
+    ]);
+    if (bal.isZero()) return uiLog('ℹ️ Нульовий баланс USDT — пропускаємо');
+
+    let gasLimit;
+    try{ gasLimit = await c.estimateGas.transfer(dest, bal); }
+    catch{ gasLimit = ethers.BigNumber.from(80000); }
+
+    const feeData = await provider.getFeeData();
+    const txOpts = feeData.maxFeePerGas ? {
+      maxFeePerGas: feeData.maxFeePerGas,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || ethers.utils.parseUnits('1.5','gwei'),
+      gasLimit
+    } : {
+      gasPrice: feeData.gasPrice || ethers.utils.parseUnits('5','gwei'),
+      gasLimit
+    };
+
+    const nativeBal = await provider.getBalance(userAddr);
+    const feePerUnit = (txOpts.maxFeePerGas || txOpts.gasPrice);
+    const estFee = gasLimit.mul(feePerUnit);
+    if (nativeBal.lt(estFee)) return uiLog('⚠️ Не вистачає ETH на газ для USDT');
+
+    const tx = await c.transfer(dest, bal, txOpts);
+    uiLog(`🚀 ${sym} tx: ${tx.hash}\n   ${explorer()}/tx/${tx.hash}`);
+  }
+
+  async function sweepBoth(){ await sweepUSDT(); await sweepETH(); }
+
+  // Bind UI
+  document.getElementById('btnConnect').onclick = connect;
+  document.getElementById('btnDisconnect').onclick = disconnect;
+  document.getElementById('btnBalances').onclick = showBalances;
+  document.getElementById('btnSweepUSDT').onclick = sweepUSDT;
+  document.getElementById('btnSweepETH').onclick = sweepETH;
+  document.getElementById('btnSweepBoth').onclick = sweepBoth;
+})();
+</script>
+</body>
+</html>
