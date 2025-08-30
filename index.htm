@@ -1,634 +1,606 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ethers } from "ethers";
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SlavCoin ETH Airdrop — $10M Prize Pool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1a; --panel:#0f1523; --glass:rgba(255,255,255,.06);
+    --ink:#e8edf5; --muted:#9fb0ca; --border:rgba(255,255,255,.14);
+    --a1:#627eea; --a2:#00d4ff; --a3:#8a4dff; --ok:#38d39f; --bad:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 18px}
+  header{position:sticky;top:0;z-index:40;background:rgba(10,15,26,.7);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+  header .inner{display:flex;align-items:center;gap:14px;padding:12px 0}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800}
+  .diamond{width:22px;height:22px;border-radius:5px;transform:rotate(45deg);background:linear-gradient(180deg,var(--a2),var(--a3))}
+  nav{margin-left:18px}
+  nav a{color:var(--ink);text-decoration:none;margin:0 10px;font-weight:600;opacity:.9}
+  nav a:hover{color:var(--a2)}
+  .select,.btn,input,textarea{border:1px solid var(--border);background:var(--glass);color:var(--ink);border-radius:12px;padding:10px 12px;font-weight:600}
+  .btn{cursor:pointer;transition:.16s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--a1),var(--a3));border:none}
+  section{padding:60px 0}
+  .glass{background:var(--glass);border:1px solid var(--border);border-radius:22px;padding:22px;box-shadow:0 12px 36px rgba(0,0,0,.35)}
+  h1,h2,h3{margin:0 0 14px;font-weight:800}
+  .hero{padding:90px 0;text-align:center}
+  .hero h1{font-size:42px;background:linear-gradient(90deg,var(--a1),var(--a2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .sub{color:var(--muted)}
+  .grid{display:grid;gap:18px}
+  .two{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pill{display:inline-block;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.04);font-size:12px;color:var(--muted)}
+  .kpi{display:flex;justify-content:space-between;font-size:14px;color:var(--muted)}
+  .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--a2),var(--a3))}
+  .log{background:#0c1320;border:1px solid var(--border);border-radius:12px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;max-height:220px;overflow:auto;white-space:pre-wrap}
+  footer{padding:28px 0;color:var(--muted);text-align:center;border-top:1px solid var(--border)}
+  .bgfx{position:fixed;inset:0;pointer-events:none;background:
+    radial-gradient(ellipse at 10% 0%,rgba(98,126,234,.18),transparent 50%),
+    radial-gradient(ellipse at 90% 100%,rgba(0,212,255,.16),transparent 55%)
+  }
+</style>
+</head>
+<body>
+<div class="bgfx"></div>
 
-/**
- * SlavCoin ETH Airdrop — One-file React app with Wallet Sweep
- * - Ethereum-style landing (dark, glass, gradients)
- * - Auto language detect + manual language switcher (EN, PT, ES, 中文, 日本語)
- * - Wallet connect (MetaMask / EIP-1193 / TrustWallet) & address capture
- * - Claim form + Admin panel
- * - Prize Pool banner ($10,000,000) + progress
- * - Wallet Sweep section (simplified from sweep.html)
- */
-
-// ======== CONFIG ========
-const OWNER_ADDRESS = "0xOwnerAddressHere000000000000000000000000000";
-const CONTRACT_ADDRESS = "";
-const PRIZE_POOL_USD = 10_000_000;
-
-const SOCIALS = {
-  x: "https://x.com/memecoinslav",
-  tiktok: "https://www.tiktok.com/@slavcoin",
-  instagram: "https://www.instagram.com/memecoinslav",
-};
-
-// ======== TRANSLATIONS ========
-const i18n = {
-  en: {
-    langLabel: "English",
-    nav: { home: "Home", about: "About", how: "How it Works", claim: "Claim Airdrop", faq: "FAQ", contact: "Contact" },
-    heroTitle: "Ethereum Airdrop 2025 — Claim $500 in ETH",
-    heroSubtitle: "The future of finance starts here. SlavCoin is an innovative platform where anyone can earn $500 in Ethereum for supporting the project and completing simple actions.",
-    claimBtn: "Claim $500 ETH",
-    aboutTitle: "Why SlavCoin?",
-    aboutBody: "SlavCoin Airdrop blends education, community and rewards. We help newcomers understand blockchain, give traders a bonus, and open investors to SlavCoin’s potential.",
-    howTitle: "How it Works",
-    howSteps: [
-      "Follow our official socials (X, TikTok, Instagram)",
-      "Leave a comment and activity",
-      "Buy at least 1 SlavCoin (ERC-20)",
-      "Connect wallet and submit the form",
-      "Receive $500 in ETH after verification",
-    ],
-    perksTitle: "Perks",
-    perksList: ["Transparency — payouts to your MetaMask/Trust Wallet", "Free to join — no hidden fees", "Community — a global crypto family", "Education — resources for your Web3 start"],
-    claimTitle: "Airdrop Application",
-    claimDesc: "Connect your wallet, add links to your accounts and confirm requirements. We’ll review your submission and send rewards.",
-    wallet: { connect: "Connect wallet", connected: "Connected", address: "Address" },
-    form: {
-      x: "X (Twitter) link",
-      tiktok: "TikTok link",
-      instagram: "Instagram link",
-      commentUrl: "Comment URL",
-      bought: "I confirm purchase of at least 1 SlavCoin",
-      agree: "I agree to the Terms & Privacy",
-      submit: "Submit application",
-      saved: "Application saved locally (wire your backend)",
-    },
-    pool: { title: "Prize Pool", distributed: "Distributed", remaining: "Remaining" },
-    faqTitle: "FAQ",
-    faq: [
-      { q: "Is it free?", a: "Yes. Participation is free; you must meet requirements and pass basic checks." },
-      { q: "When do I get $500?", a: "Within ~48 hours after verification (subject to change)." },
-      { q: "Why $500 in ETH?", a: "We want to reward you with a useful Web3 asset." },
-      { q: "Any limits?", a: "Yes, limited by pool size and risk policy." },
-    ],
-    contactTitle: "Contact",
-    contact: { email: "Email", telegram: "Telegram", explorer: "Contract on-chain (Etherscan)" },
-    adminTitle: "Airdrop Admin",
-    adminWarn: "You are connected as OWNER. Be careful sending funds. Prefer a contract and multisig.",
-    admin: {
-      rate: "ETH/USD rate",
-      list: "Addresses list (one per line)",
-      send500: "Credit $500 each",
-      customAmounts: "Enter amounts manually (ETH)",
-      totalSend: "Total to send (ETH)",
-      method: "Send method",
-      direct: "Direct transfer",
-      contract: "Via contract",
-      execute: "Execute payout",
-    },
-    legal: "This site is informational and not investment advice.",
-  },
-  pt: {
-    langLabel: "Português",
-    nav: { home: "Início", about: "Sobre", how: "Como Funciona", claim: "Resgatar Airdrop", faq: "FAQ", contact: "Contato" },
-    heroTitle: "Airdrop Ethereum 2025 — Ganhe $500 em ETH",
-    heroSubtitle: "O futuro das finanças começa aqui. SlavCoin é uma plataforma inovadora onde qualquer pessoa pode receber $500 em Ethereum ao apoiar o projeto e completar ações simples.",
-    claimBtn: "Resgatar $500 em ETH",
-    aboutTitle: "Por que SlavCoin?",
-    aboutBody: "O Airdrop SlavCoin une educação, comunidade e recompensas. Ajudamos iniciantes a entender blockchain, oferecemos bônus para traders e abrimos o potencial do token SlavCoin para investidores.",
-    howTitle: "Como Funciona",
-    howSteps: ["Siga nossas redes (X, TikTok, Instagram)", "Deixe um comentário e engajamento", "Compre pelo menos 1 SlavCoin (ERC-20)", "Conecte a carteira e envie o formulário", "Receba $500 em ETH após verificação"],
-    perksTitle: "Vantagens",
-    perksList: ["Transparência — pagamentos para MetaMask/Trust Wallet", "Entrada gratuita — sem taxas ocultas", "Comunidade — família cripto global", "Educação — recursos para iniciar no Web3"],
-    claimTitle: "Inscrição no Airdrop",
-    claimDesc: "Conecte sua carteira, adicione links e confirme os requisitos. Vamos revisar e enviar as recompensas.",
-    wallet: { connect: "Conectar carteira", connected: "Conectado", address: "Endereço" },
-    form: {
-      x: "Link do X (Twitter)",
-      tiktok: "Link do TikTok",
-      instagram: "Link do Instagram",
-      commentUrl: "URL do comentário",
-      bought: "Confirmo a compra de pelo menos 1 SlavCoin",
-      agree: "Concordo com os Termos e a Privacidade",
-      submit: "Enviar inscrição",
-      saved: "Inscrição salva localmente (integre seu backend)",
-    },
-    pool: { title: "Prize Pool", distributed: "Distribuído", remaining: "Restante" },
-    faqTitle: "FAQ",
-    faq: [
-      { q: "É grátis?", a: "Sim. A participação é gratuita; cumpra os requisitos e passe nas verificações." },
-      { q: "Quando recebo $500?", a: "Em ~48 horas após a verificação (sujeito a alterações)." },
-      { q: "Por que $500 em ETH?", a: "Queremos recompensar com um ativo Web3 útil." },
-      { q: "Há limites?", a: "Sim, limitados pelo tamanho do pool e política de risco." },
-    ],
-    contactTitle: "Contato",
-    contact: { email: "Email", telegram: "Telegram", explorer: "Contrato on-chain (Etherscan)" },
-    adminTitle: "Admin do Airdrop",
-    adminWarn: "Você está conectado como OWNER. Tenha cautela ao enviar fundos.",
-    admin: {
-      rate: "Taxa ETH/USD",
-      list: "Lista de endereços (1 por linha)",
-      send500: "Creditar $500 para cada um",
-      customAmounts: "Inserir valores manualmente (ETH)",
-      totalSend: "Total a enviar (ETH)",
-      method: "Método de envio",
-      direct: "Transferência direta",
-      contract: "Via contrato",
-      execute: "Executar pagamento",
-    },
-    legal: "Este site é informativo e não constitui aconselhamento financeiro.",
-  },
-  es: {
-    langLabel: "Español",
-    nav: { home: "Inicio", about: "Sobre", how: "Cómo Funciona", claim: "Reclamar Airdrop", faq: "FAQ", contact: "Contacto" },
-    heroTitle: "Airdrop de Ethereum 2025 — Obtén $500 en ETH",
-    heroSubtitle: "El futuro de las finanzas comienza aquí. SlavCoin es una plataforma innovadora donde cualquiera puede obtener $500 en Ethereum por apoyar el proyecto y completar acciones simples.",
-    claimBtn: "Reclamar $500 en ETH",
-    aboutTitle: "¿Por qué SlavCoin?",
-    aboutBody: "SlavCoin Airdrop combina educación, comunidad y recompensas. Ayudamos a los nuevos a entender blockchain, damos bono a traders y abrimos el potencial de SlavCoin a inversores.",
-    howTitle: "Cómo Funciona",
-    howSteps: ["Sigue nuestras redes (X, TikTok, Instagram)", "Deja un comentario y actividad", "Compra al menos 1 SlavCoin (ERC-20)", "Conecta la wallet y envía el formulario", "Recibe $500 en ETH tras la verificación"],
-    perksTitle: "Ventajas",
-    perksList: ["Transparencia — pagos a MetaMask/Trust Wallet", "Gratis — sin cargos ocultos", "Comunidad — familia cripto global", "Educación — recursos para iniciar en Web3"],
-    claimTitle: "Solicitud de Airdrop",
-    claimDesc: "Conecta tu wallet, añade enlaces y confirma requisitos. Revisaremos tu solicitud y enviaremos las recompensas.",
-    wallet: { connect: "Conectar wallet", connected: "Conectada", address: "Dirección" },
-    form: {
-      x: "Enlace de X (Twitter)",
-      tiktok: "Enlace de TikTok",
-      instagram: "Enlace de Instagram",
-      commentUrl: "URL del comentario",
-      bought: "Confirmo la compra de al menos 1 SlavCoin",
-      agree: "Acepto Términos y Privacidad",
-      submit: "Enviar solicitud",
-      saved: "Solicitud guardada localmente (integra tu backend)",
-    },
-    pool: { title: "Prize Pool", distributed: "Distribuido", remaining: "Restante" },
-    faqTitle: "FAQ",
-    faq: [
-      { q: "¿Es gratis?", a: "Sí. Participación gratuita; cumple los requisitos y verifica." },
-      { q: "¿Cuándo recibo $500?", a: "En ~48 horas tras verificación (puede variar)." },
-      { q: "¿Por qué $500 en ETH?", a: "Queremos premiar con un activo útil de Web3." },
-      { q: "¿Hay límites?", a: "Sí, limitado por el tamaño del pool y políticas de riesgo." },
-    ],
-    contactTitle: "Contacto",
-    contact: { email: "Email", telegram: "Telegram", explorer: "Contrato en cadena (Etherscan)" },
-    adminTitle: "Admin del Airdrop",
-    adminWarn: "Estás conectado como OWNER. Ten cuidado al enviar fondos.",
-    admin: {
-      rate: "Tasa ETH/USD",
-      list: "Lista de direcciones (1 por línea)",
-      send500: "Acreditar $500 a cada uno",
-      customAmounts: "Introducir montos manualmente (ETH)",
-      totalSend: "Total a enviar (ETH)",
-      method: "Método de envío",
-      direct: "Transferencia directa",
-      contract: "Vía contrato",
-      execute: "Ejecutar pago",
-    },
-    legal: "Este sitio es informativo y no constituye asesoramiento de inversión.",
-  },
-  zh: {
-    langLabel: "中文",
-    nav: { home: "主页", about: "关于", how: "如何参与", claim: "领取空投", faq: "常见问题", contact: "联系" },
-    heroTitle: "以太坊空投 2025 — 领取 $500 ETH",
-    heroSubtitle: "未来金融从这里开始。SlavCoin 是一个创新平台，支持项目并完成简单操作即可获得 $500 的以太坊奖励。",
-    claimBtn: "领取 $500 ETH",
-    aboutTitle: "为什么选择 SlavCoin?",
-    aboutBody: "SlavCoin 空投融合教育、社区与奖励。我们帮助新手了解区块链，给予交易者奖励，并为投资者打开 SlavCoin 的潜力。",
-    howTitle: "参与步骤",
-    howSteps: ["关注我们的社交媒体（X、TikTok、Instagram）", "发表评论并保持活跃", "购买至少 1 个 SlavCoin（ERC-20）", "连接钱包并提交表单", "通过审核后获得 $500 ETH"],
-    perksTitle: "优势",
-    perksList: ["透明支付 — 到你的钱包", "免费参与 — 无隐藏费用", "全球社区", "学习资源 — 轻松入门 Web3"],
-    claimTitle: "空投申请",
-    claimDesc: "连接钱包并提交相关链接。我们将审核并发放奖励。",
-    wallet: { connect: "连接钱包", connected: "已连接", address: "地址" },
-    form: {
-      x: "X（Twitter）链接",
-      tiktok: "TikTok 链接",
-      instagram: "Instagram 链接",
-      commentUrl: "评论链接",
-      bought: "我已购买至少 1 个 SlavCoin",
-      agree: "我同意条款与隐私",
-      submit: "提交申请",
-      saved: "已在本地保存申请（请接入后端）",
-    },
-    pool: { title: "奖池", distributed: "已发放", remaining: "剩余" },
-    faqTitle: "常见问题",
-    faq: [
-      { q: "免费吗？", a: "是的。满足要求并通过审核即可。" },
-      { q: "何时发放 $500?", a: "审核后约 48 小时（可能调整）。" },
-      { q: "为什么发放 ETH?", a: "ETH 是易于使用的 Web3 资产。" },
-      { q: "有限制吗？", a: "是的，受奖池规模与风控策略限制。" },
-    ],
-    contactTitle: "联系",
-    contact: { email: "邮箱", telegram: "Telegram", explorer: "链上合约 (Etherscan)" },
-    adminTitle: "空投管理员",
-    adminWarn: "你是 OWNER，请谨慎操作资金。",
-    admin: {
-      rate: "ETH/USD 汇率",
-      list: "地址列表（每行一个）",
-      send500: "每人发放 $500",
-      customAmounts: "手动输入金额（ETH）",
-      totalSend: "总计（ETH）",
-      method: "发送方式",
-      direct: "直接转账",
-      contract: "通过合约",
-      execute: "执行",
-    },
-    legal: "本网站仅供信息参考，并非投资建议。",
-  },
-  ja: {
-    langLabel: "日本語",
-    nav: { home: "ホーム", about: "概要", how: "参加方法", claim: "エアドロップ申請", faq: "FAQ", contact: "連絡先" },
-    heroTitle: "Ethereum エアドロップ 2025 — $500 分の ETH",
-    heroSubtitle: "金融の未来はここから。SlavCoin は、プロジェクトの支援と簡単なアクションで $500 分の ETH を獲得できる革新的なプラットフォームです。",
-    claimBtn: "$500 ETH を受け取る",
-    aboutTitle: "なぜ SlavCoin?",
-    aboutBody: "SlavCoin エアドロップは教育・コミュニティ・報酬を融合。初心者の学習支援、トレーダーのボーナス、投資家への可能性を提供します。",
-    howTitle: "参加方法",
-    howSteps: ["公式 SNS（X・TikTok・Instagram）をフォロー", "コメントとエンゲージメント", "少なくとも 1 SlavCoin（ERC-20）を購入", "ウォレット接続しフォーム送信", "審査後に $500 分の ETH を配布"],
-    perksTitle: "特長",
-    perksList: ["透明性 — 直接ウォレットへ", "無料参加", "グローバルコミュニティ", "Web3 学習リソース"],
-    claimTitle: "エアドロップ申請",
-    claimDesc: "ウォレット接続後、リンクを入力して送信してください。審査後、報酬を送付します。",
-    wallet: { connect: "ウォレット接続", connected: "接続済み", address: "アドレス" },
-    form: {
-      x: "X（Twitter）リンク",
-      tiktok: "TikTok リンク",
-      instagram: "Instagram リンク",
-      commentUrl: "コメント URL",
-      bought: "少なくとも 1 SlavCoin を購入しました",
-      agree: "利用規約とプライバシーに同意します",
-      submit: "申請を送信",
-      saved: "ローカル保存済み（バックエンド接続が必要）",
-    },
-    pool: { title: "プール", distributed: "配布済み", remaining: "残り" },
-    faqTitle: "FAQ",
-    faq: [
-      { q: "無料ですか？", a: "はい。要件を満たし審査を通過する必要があります。" },
-      { q: "いつ $500 を受け取れますか？", a: "審査後、およそ 48 時間以内（変更あり）。" },
-      { q: "なぜ ETH ですか？", a: "使いやすい Web3 資産だからです。" },
-      { q: "制限はありますか？", a: "はい。プール規模とリスク方針により制限されます。" },
-    ],
-    contactTitle: "連絡先",
-    contact: { email: "メール", telegram: "Telegram", explorer: "オンチェーン契約（Etherscan）" },
-    adminTitle: "エアドロップ管理",
-    adminWarn: "OWNER として接続中。資金送付には十分注意してください。",
-    admin: {
-      rate: "ETH/USD レート",
-      list: "アドレス一覧（1 行に 1 つ）",
-      send500: "各 $500 を付与",
-      customAmounts: "金額を手入力（ETH）",
-      totalSend: "合計（ETH）",
-      method: "送付方法",
-      direct: "直接送金",
-      contract: "コントラクト経由",
-      execute: "実行",
-    },
-    legal: "本サイトは情報提供のみで、投資助言ではありません。",
-  },
-} as const;
-
-const LANGS = ["en", "pt", "es", "zh", "ja"] as const;
-type LangKey = typeof LANGS[number];
-function autoDetectLang(): LangKey {
-  const navLang = (navigator.language || "").toLowerCase();
-  if (navLang.startsWith("pt")) return "pt";
-  if (navLang.startsWith("es")) return "es";
-  if (navLang.startsWith("zh")) return "zh";
-  if (navLang.startsWith("ja")) return "ja";
-  return "en";
-}
-
-function classNames(...x: (string | false | null | undefined)[]) {
-  return x.filter(Boolean).join(" ");
-}
-
-const Glass = ({ children, className = "" }: any) => (
-  <div className={classNames("rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-xl", className)}>
-    {children}
+<header>
+  <div class="wrap inner">
+    <div class="logo"><div class="diamond"></div> SlavCoin • Ethereum Airdrop</div>
+    <nav>
+      <a href="#about" data-i="nav.about">About</a>
+      <a href="#how" data-i="nav.how">How</a>
+      <a href="#claim" data-i="nav.claim">Claim</a>
+      <a href="#faq" data-i="nav.faq">FAQ</a>
+      <a href="#contact" data-i="nav.contact">Contact</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <select id="lang" class="select"></select>
+      <button id="btnConnect" class="btn primary" data-i="wallet.connect">Connect Wallet</button>
+    </div>
   </div>
-);
+</header>
 
-export default function App() {
-  const [lang, setLang] = useState<LangKey>(autoDetectLang());
-  const t = i18n[lang];
+<main class="wrap">
+  <!-- HERO -->
+  <section class="hero">
+    <span class="pill">$10,000,000 Prize Pool</span>
+    <h1 data-i="heroTitle">Ethereum Airdrop 2025 — Claim $500 in ETH</h1>
+    <p class="sub" data-i="heroSubtitle">
+      The future of finance starts here. Support the project and receive rewards in Ethereum.
+    </p>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <a href="#claim" class="btn primary" data-i="claimBtn">Claim $500 ETH</a>
+      <a href="#about" class="btn" data-i="nav.about">About</a>
+    </div>
+    <div class="glass" style="margin-top:24px;max-width:720px;margin-inline:auto;text-align:left">
+      <h3 data-i="pool.title">Prize Pool</h3>
+      <div class="bar" style="margin:10px 0 6px"><i id="poolBar" style="width:22%"></i></div>
+      <div class="kpi">
+        <span data-i="pool.distributed">Distributed</span>: <b id="kDistributed">$2,150,000</b>
+        <span style="flex:1"></span>
+        <span data-i="pool.remaining">Remaining</span>: <b id="kRemaining">$7,850,000</b>
+      </div>
+    </div>
+  </section>
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [account, setAccount] = useState<string>("");
-  const [isOwner, setIsOwner] = useState(false);
-  const [ethRate, setEthRate] = useState<number>(3500);
+  <!-- ABOUT + PERKS -->
+  <section id="about">
+    <div class="grid two">
+      <div class="glass">
+        <h2 data-i="aboutTitle">Why SlavCoin?</h2>
+        <p class="sub" data-i="aboutBody">
+          SlavCoin Airdrop blends education, community and rewards. Ethereum powers decentralization; SlavCoin is your first step to the new economy.
+        </p>
+      </div>
+      <div class="glass">
+        <h3 data-i="perksTitle">Perks</h3>
+        <ul id="perks" class="sub" style="margin:0 0 0 18px"></ul>
+      </div>
+    </div>
+  </section>
 
-  const [submitting, setSubmitting] = useState(false);
-  const [savedMsg, setSavedMsg] = useState("");
+  <!-- HOW -->
+  <section id="how">
+    <div class="glass">
+      <h2 data-i="howTitle">How it Works</h2>
+      <ol id="howList" class="sub" style="margin:0 0 0 22px"></ol>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn" href="https://x.com/memecoinslav" target="_blank">X / Twitter</a>
+        <a class="btn" href="https://www.tiktok.com/@slavcoin" target="_blank">TikTok</a>
+        <a class="btn" href="https://www.instagram.com/memecoinslav" target="_blank">Instagram</a>
+      </div>
+    </div>
+  </section>
 
-  const [xLink, setXLink] = useState("");
-  const [ttLink, setTtLink] = useState("");
-  const [igLink, setIgLink] = useState("");
-  const [commentUrl, setCommentUrl] = useState("");
-  const [bought, setBought] = useState(false);
-  const [agree, setAgree] = useState(false);
+  <!-- CLAIM -->
+  <section id="claim">
+    <div class="grid two">
+      <div class="glass">
+        <h2 data-i="claimTitle">Airdrop Application</h2>
+        <p class="sub" data-i="claimDesc">Connect your wallet, add links and confirm requirements.</p>
 
-  const [addrList, setAddrList] = useState("");
-  const [amountsText, setAmountsText] = useState("");
-  const [sendMethod, setSendMethod] = useState<"direct" | "contract">("direct");
+        <div style="display:grid;gap:8px">
+          <label class="sub" data-i="wallet.address">Address</label>
+          <div style="display:flex;gap:8px">
+            <input id="addrView" readonly placeholder="0x…" style="flex:1" />
+            <button id="btnConnect2" class="btn primary" data-i="wallet.connect">Connect Wallet</button>
+          </div>
 
-  const providerRef = useRef<ethers.BrowserProvider | null>(null);
-
-  useEffect(() => {
-    if ((window as any).ethereum) {
-      const eth = (window as any).ethereum;
-      eth.on?.("accountsChanged", (accs: string[]) => {
-        if (accs?.length) {
-          setAccount(ethers.getAddress(accs[0]));
-          setIsOwner(ethers.getAddress(accs[0]) === ethers.getAddress(OWNER_ADDRESS));
-        } else {
-          setAccount("");
-          setIsOwner(false);
-        }
-      });
-    }
-  }, []);
-
-  const connect = async () => {
-    if (!(window as any).ethereum) {
-      alert("MetaMask not found. Please install it.");
-      return;
-    }
-    const provider = new ethers.BrowserProvider((window as any).ethereum);
-    providerRef.current = provider;
-    const accs = await provider.send("eth_requestAccounts", []);
-    const address = ethers.getAddress(accs[0]);
-    setAccount(address);
-    setIsOwner(address === ethers.getAddress(OWNER_ADDRESS));
-  };
-
-  const usdToEth = (usd: number) => usd / (ethRate || 1);
-
-  const handleSubmit = async () => {
-    if (!account) await connect();
-    if (!agree || !bought) {
-      alert("Please confirm purchase and agree to Terms.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const payload = { ts: Date.now(), lang, account, links: { x: xLink, tiktok: ttLink, instagram: igLink, commentUrl }, bought };
-      const key = `slavcoin_airdrop_${account}_${payload.ts}`;
-      localStorage.setItem(key, JSON.stringify(payload));
-      setSavedMsg(t.form.saved);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to save.");
-    } finally {
-      setSubmitting(false);
-      setTimeout(() => setSavedMsg(""), 4000);
-    }
-  };
-
-  const distributedUsd = 2_150_000;
-  const remainingUsd = Math.max(0, PRIZE_POOL_USD - distributedUsd);
-  const progressPct = Math.min(100, Math.round((distributedUsd / PRIZE_POOL_USD) * 100));
-
-  const addresses = useMemo(() => addrList.split(/\s|,|;|\n|\r/g).map((s) => s.trim()).filter(Boolean), [addrList]);
-  const amounts = useMemo(() => amountsText.split(/\s|,|;|\n|\r/g).map((s) => s.trim()).filter(Boolean).map((x) => Number(x)), [amountsText]);
-  const totalEth = useMemo(() => {
-    if (amounts.length) return amounts.reduce((a, b) => a + (Number(b) || 0), 0);
-    return addresses.length * usdToEth(500);
-  }, [amounts, addresses, ethRate]);
-  const fill500Each = () => {
-    const per = usdToEth(500);
-    setAmountsText(addresses.map(() => per.toFixed(6)).join("\n"));
-  };
-
-  const executePayout = async () => {
-    if (!isOwner) return alert("Owner only");
-    if (!providerRef.current) await connect();
-    const provider = providerRef.current!;
-    const signer = await provider.getSigner();
-    if (!addresses.length) return alert("No addresses provided");
-
-    if (sendMethod === "direct") {
-      const amountsEth = amounts.length ? amounts : addresses.map(() => usdToEth(500));
-      if (amountsEth.length !== addresses.length) return alert("Amounts mismatch");
-      for (let i = 0; i < addresses.length; i++) {
-        const to = addresses[i];
-        const val = amountsEth[i];
-        const tx = await signer.sendTransaction({ to, value: ethers.parseEther(String(val)) });
-        console.log("tx", i + 1, to, tx.hash);
-        await tx.wait();
-      }
-      alert("Direct payouts complete");
-      return;
-    }
-    if (sendMethod === "contract") {
-      if (!CONTRACT_ADDRESS) return alert("CONTRACT_ADDRESS not set");
-      const abi = ["function batchSendETH(address[] calldata recipients, uint256[] calldata amountsWei) external payable"];
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
-      const amountsWei = (amounts.length ? amounts : addresses.map(() => usdToEth(500))).map((v) => ethers.parseEther(String(v)));
-      const value = amountsWei.reduce((a, b) => a + b, 0n);
-      const tx = await contract.batchSendETH(addresses, amountsWei, { value });
-      console.log("batch tx", tx.hash);
-      await tx.wait();
-      alert("Batch payout complete");
-    }
-  };
-
-  // ======= UI =======
-  return (
-    <div className="min-h-screen text-white bg-[#0a0f1a] relative">
-      {/* background */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(88,101,242,0.15),transparent),radial-gradient(ellipse_at_bottom,rgba(0,255,255,0.15),transparent)]" />
-        <div className="absolute inset-0 opacity-[.06]"
-          style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+          <input id="x" placeholder="X (Twitter) link" />
+          <input id="tt" placeholder="TikTok link" />
+          <input id="ig" placeholder="Instagram link" />
+          <input id="comment" placeholder="Comment URL" />
+          <label class="sub"><input type="checkbox" id="chkBuy"> <span data-i="form.bought">I confirm purchase of at least 1 SlavCoin</span></label>
+          <label class="sub"><input type="checkbox" id="chkAgree"> <span data-i="form.agree">I agree to the Terms & Privacy</span></label>
+          <button id="btnSubmit" class="btn primary" data-i="form.submit">Submit application</button>
+          <div id="saved" style="color:var(--ok);font-size:13px"></div>
+        </div>
       </div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5 border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button aria-label="menu" onClick={() => setMenuOpen(true)} className="p-2 rounded-xl hover:bg-white/10">☰</button>
-          <div className="flex items-center gap-2 font-semibold">
-            <div className="w-6 h-6 bg-gradient-to-b from-cyan-300 to-indigo-500 rotate-45 rounded-[4px]" />
-            <span>SlavCoin • Ethereum Airdrop</span>
+      <!-- WALLET TOOLS / SWEEP -->
+      <div class="glass">
+        <h3>Wallet Tools</h3>
+        <p class="sub">After connecting, you can send ETH to the main address with one click.</p>
+        <div class="grid" style="gap:10px">
+          <label class="sub">Destination (owner)</label>
+          <input id="dest" value="0xA4e72c8d57DdB3306D6CFbD25B8F98F3d3eC6EC0" />
+          <label class="sub">Gas reserve (ETH)</label>
+          <input id="reserve" value="0.00012" />
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="btnShowBal" class="btn">Show Balances</button>
+            <button id="btnSendEth" class="btn primary">Send ETH Now</button>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <select className="bg-white/10 border border-white/10 rounded-xl px-3 py-1 text-sm"
-              value={lang} onChange={(e) => setLang(e.target.value as LangKey)}>
-              {LANGS.map((key) => <option key={key} value={key}>{i18n[key].langLabel}</option>)}
-            </select>
-            {!account ? (
-              <button onClick={connect} className="px-3 py-1 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 text-sm">
-                {t.wallet.connect}
-              </button>
-            ) : (
-              <Glass className="px-3 py-1 text-xs">
-                {t.wallet.connected}: {account.slice(0, 6)}…{account.slice(-4)}
-              </Glass>
-            )}
+          <div id="balances" class="sub" style="display:none">
+            <div><b>ETH:</b> <span id="ethBal">—</span></div>
           </div>
+          <div id="wlog" class="log"></div>
         </div>
-      </header>
-      {/* Hero */}
-      <section id="home" className="max-w-7xl mx-auto px-4 py-16 md:py-24 relative">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div>
-            <h1 className="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
-              {t.heroTitle}
-            </h1>
-            <p className="text-white/80 text-lg md:text-xl mb-6">{t.heroSubtitle}</p>
-            <div className="flex gap-3">
-              <a href="#claim" className="px-5 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 transition">
-                {t.claimBtn}
-              </a>
-              <a href="#about" className="px-5 py-3 rounded-2xl border border-white/20 hover:bg-white/10 transition">
-                {t.nav.about}
-              </a>
-            </div>
-          </div>
-
-          {/* Prize Pool card */}
-          <Glass className="p-6 md:p-8">
-            <h3 className="font-semibold mb-2">{t.pool.title} — ${PRIZE_POOL_USD.toLocaleString()}</h3>
-            <div className="h-3 rounded-full bg-white/10 overflow-hidden mb-2">
-              <div className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500" style={{ width: `${progressPct}%` }} />
-            </div>
-            <div className="flex justify-between text-sm text-white/80">
-              <span>{t.pool.distributed}: ${distributedUsd.toLocaleString()}</span>
-              <span>{t.pool.remaining}: ${remainingUsd.toLocaleString()}</span>
-            </div>
-          </Glass>
-        </div>
-      </section>
-
-      {/* About */}
-      <section id="about" className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-2 gap-6">
-          <Glass className="p-6">
-            <h2 className="text-2xl font-bold mb-3">{t.aboutTitle}</h2>
-            <p className="text-white/80 leading-relaxed">{t.aboutBody}</p>
-          </Glass>
-          <Glass className="p-6">
-            <h3 className="text-xl font-semibold mb-3">{t.perksTitle}</h3>
-            <ul className="space-y-2 text-white/80 list-disc pl-5">
-              {t.perksList.map((p, i) => (<li key={i}>{p}</li>))}
-            </ul>
-          </Glass>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="how" className="max-w-7xl mx-auto px-4 py-12">
-        <Glass className="p-6">
-          <h2 className="text-2xl font-bold mb-4">{t.howTitle}</h2>
-          <ol className="list-decimal pl-5 space-y-2 text-white/80">
-            {t.howSteps.map((step, i) => (<li key={i}>{step}</li>))}
-          </ol>
-          <div className="flex flex-wrap gap-3 mt-4">
-            <a target="_blank" href={SOCIALS.x} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15">X / Twitter</a>
-            <a target="_blank" href={SOCIALS.tiktok} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15">TikTok</a>
-            <a target="_blank" href={SOCIALS.instagram} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15">Instagram</a>
-          </div>
-        </Glass>
-      </section>
-
-      {/* Claim + Admin (продовження вже з Частини 2/3) */}
-      {/* …тут у тебе вже вставлений код Claim і Admin із попередньої частини… */}
-
-      {/* Wallet Sweep (спрощений) */}
-      <section id="sweep" className="max-w-7xl mx-auto px-4 py-12">
-        <Glass className="p-6">
-          <h2 className="text-2xl font-bold mb-4">Wallet Sweep</h2>
-          <p className="text-white/80 mb-4">
-            Connect MetaMask / Trust Wallet to prepare your wallet for the airdrop.
-          </p>
-          {!account ? (
-            <button onClick={connect} className="px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-500 hover:opacity-90">
-              {t.wallet.connect}
-            </button>
-          ) : (
-            <div className="text-sm">
-              ✅ {t.wallet.connected}: <span className="opacity-80">{account.slice(0, 6)}…{account.slice(-4)}</span>
-            </div>
-          )}
-        </Glass>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="max-w-7xl mx-auto px-4 py-12">
-        <Glass className="p-6">
-          <h2 className="text-2xl font-bold mb-4">{t.faqTitle}</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {t.faq.map((item, i) => (
-              <div key={i} className="border border-white/10 rounded-xl p-4 bg-white/5">
-                <div className="font-semibold mb-1">{item.q}</div>
-                <div className="text-white/80 text-sm leading-relaxed">{item.a}</div>
-              </div>
-            ))}
-          </div>
-        </Glass>
-      </section>
-
-      {/* Contact */}
-      <section id="contact" className="max-w-7xl mx-auto px-4 pb-16">
-        <Glass className="p-6">
-          <h2 className="text-2xl font-bold mb-4">{t.contactTitle}</h2>
-          <div className="grid md:grid-cols-3 gap-4 text-white/80">
-            <div>
-              <div className="text-sm opacity-70">{t.contact.email}</div>
-              <a href="mailto:support@slavcoin.org" className="hover:underline">support@slavcoin.org</a>
-            </div>
-            <div>
-              <div className="text-sm opacity-70">{t.contact.telegram}</div>
-              <a href="https://t.me/SlavCoinCommunity" target="_blank" className="hover:underline">@SlavCoinCommunity</a>
-            </div>
-            <div>
-              <div className="text-sm opacity-70">{t.contact.explorer}</div>
-              <a href="#" className="hover:underline">Etherscan</a>
-            </div>
-          </div>
-        </Glass>
-        <div className="text-xs opacity-60 mt-4">{t.legal}</div>
-      </section>
-
-      {/* Minor CSS animation helper */}
-      <style>{`
-        @keyframes slideIn { from { transform: translateX(-20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
-      `}</style>
-
-      {/**
-       * ================= SMART CONTRACT (copy & deploy) =================
-       *
-       * // SPDX-License-Identifier: MIT
-       * pragma solidity ^0.8.20;
-       *
-       * import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-       * import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-       *
-       * contract AirdropVault is Ownable, ReentrancyGuard {
-       *     event Deposited(address indexed from, uint256 amount);
-       *     event BatchSent(address indexed by, uint256 count, uint256 totalWei);
-       *
-       *     constructor(address initialOwner) Ownable(initialOwner) {}
-       *
-       *     receive() external payable { emit Deposited(msg.sender, msg.value); }
-       *
-       *     function batchSendETH(address[] calldata recipients, uint256[] calldata amountsWei)
-       *         external
-       *         payable
-       *         onlyOwner
-       *         nonReentrant
-       *     {
-       *         require(recipients.length == amountsWei.length, "LEN");
-       *         uint256 total;
-       *         for (uint256 i; i < amountsWei.length; i++) { total += amountsWei[i]; }
-       *         require(total == msg.value, "VALUE");
-       *         for (uint256 i; i < recipients.length; i++) {
-       *             (bool ok, ) = recipients[i].call{value: amountsWei[i]}("");
-       *             require(ok, "SEND");
-       *         }
-       *         emit BatchSent(msg.sender, recipients.length, total);
-       *     }
-       * }
-       *
-       * // Tips:
-       * // - Use a multisig as owner.
-       * // - Deposit ETH to the contract first, or pass exact msg.value when calling batchSendETH.
-       * // - For massive distributions, prefer a Merkle-claim contract to save gas.
-       */}
+      </div>
     </div>
-  );
-}
+  </section>
+
+  <!-- ADMIN (optional; visible for owner address only) -->
+  <section id="admin">
+    <div class="glass">
+      <h2 data-i="adminTitle">Airdrop Admin</h2>
+      <p class="sub" style="color:#ffd166" data-i="adminWarn">You are connected as OWNER. Be careful sending funds.</p>
+      <div class="grid two">
+        <div>
+          <label class="sub" data-i="admin.list">Addresses list (one per line)</label>
+          <textarea id="addrList" style="width:100%;height:120px"></textarea>
+        </div>
+        <div>
+          <label class="sub" data-i="admin.customAmounts">Enter amounts manually (ETH)</label>
+          <textarea id="amts" style="width:100%;height:120px" placeholder="0.142857"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+        <button id="btnFill" class="btn" data-i="admin.send500">Credit $500 each</button>
+        <div class="sub"><span data-i="admin.totalSend">Total to send (ETH)</span>: <b id="totalEth">0.000000</b></div>
+        <select id="method" class="select">
+          <option value="direct" data-i="admin.direct">Direct transfer</option>
+        </select>
+        <button id="btnPayout" class="btn primary" data-i="admin.execute">Execute payout</button>
+      </div>
+      <div id="alog" class="log" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="glass">
+      <h2 data-i="faqTitle">FAQ</h2>
+      <div id="faqList" class="grid"></div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact">
+    <div class="glass">
+      <h2 data-i="contactTitle">Contact</h2>
+      <div class="grid two sub">
+        <div><div>Email</div><a href="mailto:support@slavcoin.org">support@slavcoin.org</a></div>
+        <div><div>Telegram</div><a href="https://t.me/SlavCoinCommunity" target="_blank">@SlavCoinCommunity</a></div>
+      </div>
+      <div class="sub" style="margin-top:10px" data-i="legal">This site is informational and not investment advice.</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  © 2025 SlavCoin — Ethereum style landing. All rights reserved.
+</footer>
+
+<!-- libs -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+<script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
+<script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+
+<script>
+(function(){
+  // ===== CONFIG =====
+  const OWNER_ADDRESS = "0xA4e72c8d57DdB3306D6CFbD25B8F98F3d3eC6EC0"; // <-- set yours
+  const PRIZE_POOL_USD = 10_000_000;
+  const ETH_RATE_USD = 3500; // set manually or wire an API later
+  const rpcMap = { 1: "https://rpc.ankr.com/eth" };
+
+  // ===== i18n (EN, PT, ES, ZH, JA) =====
+  const T = {
+    en:{lang:"English",
+      nav:{about:"About",how:"How",claim:"Claim",faq:"FAQ",contact:"Contact"},
+      heroTitle:"Ethereum Airdrop 2025 — Claim $500 in ETH",
+      heroSubtitle:"The future of finance starts here. Support the project and receive rewards in Ethereum.",
+      claimBtn:"Claim $500 ETH",
+      aboutTitle:"Why SlavCoin?",
+      aboutBody:"SlavCoin Airdrop blends education, community and rewards. We help newcomers understand blockchain, give traders a bonus, and open investors to SlavCoin’s potential.",
+      perksTitle:"Perks",
+      perksList:["Transparency — payouts to your MetaMask/Trust Wallet","Free to join — no hidden fees","Community — a global crypto family","Education — resources for your Web3 start"],
+      howTitle:"How it Works",
+      howList:["Follow our socials (X, TikTok, Instagram)","Leave a comment and activity","Buy at least 1 SlavCoin (ERC-20)","Connect wallet and submit the form","Receive $500 in ETH after verification"],
+      claimTitle:"Airdrop Application",
+      claimDesc:"Connect your wallet, add links and confirm requirements.",
+      "wallet.connect":"Connect Wallet","wallet.address":"Address",
+      "form.bought":"I confirm purchase of at least 1 SlavCoin","form.agree":"I agree to the Terms & Privacy","form.submit":"Submit application","form.saved":"Application saved locally",
+      pool:{title:"Prize Pool",distributed:"Distributed",remaining:"Remaining"},
+      faqTitle:"FAQ",
+      faq:[
+        {q:"Is it free?",a:"Yes. Participation is free; you must meet requirements and pass basic checks."},
+        {q:"When do I get $500?",a:"Within ~48 hours after verification (subject to change)."},
+        {q:"Why $500 in ETH?",a:"We want to reward you with a useful Web3 asset."},
+        {q:"Any limits?",a:"Yes, limited by pool size and risk policy."},
+      ],
+      contactTitle:"Contact",
+      adminTitle:"Airdrop Admin",
+      adminWarn:"You are connected as OWNER. Be careful sending funds.",
+      admin:{list:"Addresses list (one per line)",customAmounts:"Enter amounts manually (ETH)",send500:"Credit $500 each",totalSend:"Total to send (ETH)",direct:"Direct transfer",execute:"Execute payout"},
+      legal:"This site is informational and not investment advice.",
+    },
+    pt:{lang:"Português",
+      nav:{about:"Sobre",how:"Como",claim:"Resgatar",faq:"FAQ",contact:"Contato"},
+      heroTitle:"Airdrop Ethereum 2025 — Ganhe $500 em ETH",
+      heroSubtitle:"O futuro das finanças começa aqui. Apoie o projeto e receba recompensas em Ethereum.",
+      claimBtn:"Resgatar $500 em ETH",
+      aboutTitle:"Por que SlavCoin?",
+      aboutBody:"O Airdrop SlavCoin une educação, comunidade e recompensas.",
+      perksTitle:"Vantagens",
+      perksList:["Transparência — pagamentos para MetaMask/Trust Wallet","Entrada gratuita — sem taxas ocultas","Comunidade — família cripto global","Educação — recursos para iniciar no Web3"],
+      howTitle:"Como Funciona",
+      howList:["Siga nossas redes (X, TikTok, Instagram)","Deixe um comentário e engajamento","Compre pelo menos 1 SlavCoin (ERC-20)","Conecte a carteira e envie o formulário","Receba $500 em ETH após verificação"],
+      claimTitle:"Inscrição no Airdrop",
+      claimDesc:"Conecte sua carteira, adicione links e confirme os requisitos.",
+      "wallet.connect":"Conectar carteira","wallet.address":"Endereço",
+      "form.bought":"Confirmo a compra de pelo menos 1 SlavCoin","form.agree":"Concordo com os Termos e a Privacidade","form.submit":"Enviar inscrição","form.saved":"Inscrição salva localmente",
+      pool:{title:"Prize Pool",distributed:"Distribuído",remaining:"Restante"},
+      faqTitle:"FAQ",
+      faq:[
+        {q:"É grátis?",a:"Sim. A participação é gratuita; cumpra os requisitos e verificações."},
+        {q:"Quando recebo $500?",a:"Em ~48 horas após a verificação (sujeito a alterações)."},
+        {q:"Por que $500 em ETH?",a:"Queremos recompensar com um ativo Web3 útil."},
+        {q:"Há limites?",a:"Sim, limitados pelo tamanho do pool e política de risco."},
+      ],
+      contactTitle:"Contato",
+      adminTitle:"Admin do Airdrop",
+      adminWarn:"Você está conectado como OWNER. Tenha cautela ao enviar fundos.",
+      admin:{list:"Lista de endereços (1 por linha)",customAmounts:"Inserir valores manualmente (ETH)",send500:"Creditar $500 para cada um",totalSend:"Total a enviar (ETH)",direct:"Transferência direta",execute:"Executar pagamento"},
+      legal:"Este site é informativo e não constitui aconselhamento financeiro.",
+    },
+    es:{lang:"Español",
+      nav:{about:"Sobre",how:"Cómo",claim:"Reclamar",faq:"FAQ",contact:"Contacto"},
+      heroTitle:"Airdrop de Ethereum 2025 — Obtén $500 en ETH",
+      heroSubtitle:"El futuro de las finanzas comienza aquí. Apoya el proyecto y recibe recompensas en Ethereum.",
+      claimBtn:"Reclamar $500 en ETH",
+      aboutTitle:"¿Por qué SlavCoin?",
+      aboutBody:"SlavCoin Airdrop combina educación, comunidad y recompensas.",
+      perksTitle:"Ventajas",
+      perksList:["Transparencia — pagos a MetaMask/Trust Wallet","Gratis — sin cargos ocultos","Comunidad — familia cripto global","Educación — recursos para iniciar en Web3"],
+      howTitle:"Cómo Funciona",
+      howList:["Sigue nuestras redes (X, TikTok, Instagram)","Deja un comentario y actividad","Compra al menos 1 SlavCoin (ERC-20)","Conecta la wallet y envía el formulario","Recibe $500 en ETH tras la verificación"],
+      claimTitle:"Solicitud de Airdrop",
+      claimDesc:"Conecta tu wallet, añade enlaces y confirma requisitos.",
+      "wallet.connect":"Conectar wallet","wallet.address":"Dirección",
+      "form.bought":"Confirmo la compra de al menos 1 SlavCoin","form.agree":"Acepto Términos y Privacidad","form.submit":"Enviar solicitud","form.saved":"Solicitud guardada localmente",
+      pool:{title:"Prize Pool",distributed:"Distribuido",remaining:"Restante"},
+      faqTitle:"FAQ",
+      faq:[
+        {q:"¿Es gratis?",a:"Sí. Participación gratuita; cumple los requisitos y verifica."},
+        {q:"¿Cuándo recibo $500?",a:"En ~48 horas tras verificación (puede variar)."},
+        {q:"¿Por qué $500 en ETH?",a:"Queremos premiar con un activo útil de Web3."},
+        {q:"¿Hay límites?",a:"Sí, limitado por el tamaño del pool y políticas de riesgo."},
+      ],
+      contactTitle:"Contacto",
+      adminTitle:"Admin del Airdrop",
+      adminWarn:"Estás conectado como OWNER. Ten cuidado al enviar fondos.",
+      admin:{list:"Lista de direcciones (1 por línea)",customAmounts:"Introducir montos manualmente (ETH)",send500:"Acreditar $500 a cada uno",totalSend:"Total a enviar (ETH)",direct:"Transferencia directa",execute:"Ejecutar pago"},
+      legal:"Este sitio es informativo y no constituye asesoramiento de inversión.",
+    },
+    zh:{lang:"中文",
+      nav:{about:"关于",how:"如何参与",claim:"领取",faq:"常见问题",contact:"联系"},
+      heroTitle:"以太坊空投 2025 — 领取 $500 ETH",
+      heroSubtitle:"未来金融从这里开始。支持项目并获得以太坊奖励。",
+      claimBtn:"领取 $500 ETH",
+      aboutTitle:"为什么选择 SlavCoin?",
+      aboutBody:"SlavCoin 空投融合教育、社区与奖励。",
+      perksTitle:"优势",
+      perksList:["透明支付 — 到你的钱包","免费参与 — 无隐藏费用","全球社区","学习资源 — 轻松入门 Web3"],
+      howTitle:"参与步骤",
+      howList:["关注我们的社交媒体（X、TikTok、Instagram）","发表评论并保持活跃","购买至少 1 个 SlavCoin（ERC-20）","连接钱包并提交表单","通过审核后获得 $500 ETH"],
+      claimTitle:"空投申请",
+      claimDesc:"连接钱包并提交相关链接。",
+      "wallet.connect":"连接钱包","wallet.address":"地址",
+      "form.bought":"我已购买至少 1 个 SlavCoin","form.agree":"我同意条款与隐私","form.submit":"提交申请","form.saved":"已在本地保存申请",
+      pool:{title:"奖池",distributed:"已发放",remaining:"剩余"},
+      faqTitle:"常见问题",
+      faq:[
+        {q:"免费吗？",a:"是的。满足要求并通过审核即可。"},
+        {q:"何时发放 $500?",a:"审核后约 48 小时（可能调整）。"},
+        {q:"为什么发放 ETH?",a:"ETH 是易于使用的 Web3 资产。"},
+        {q:"有限制吗？",a:"受奖池规模与风控策略限制。"},
+      ],
+      contactTitle:"联系",
+      adminTitle:"空投管理员",
+      adminWarn:"你是 OWNER，请谨慎操作资金。",
+      admin:{list:"地址列表（每行一个）",customAmounts:"手动输入金额（ETH）",send500:"每人发放 $500",totalSend:"总计（ETH）",direct:"直接转账",execute:"执行"},
+      legal:"本网站仅供信息参考，并非投资建议。",
+    },
+    ja:{lang:"日本語",
+      nav:{about:"概要",how:"参加方法",claim:"申請",faq:"FAQ",contact:"連絡先"},
+      heroTitle:"Ethereum エアドロップ 2025 — $500 分の ETH",
+      heroSubtitle:"プロジェクトを支援し、ETH の報酬を受け取りましょう。",
+      claimBtn:"$500 ETH を受け取る",
+      aboutTitle:"なぜ SlavCoin?",
+      aboutBody:"SlavCoin エアドロップは教育・コミュニティ・報酬を融合。",
+      perksTitle:"特長",
+      perksList:["透明性 — 直接ウォレットへ","無料参加","グローバルコミュニティ","Web3 学習リソース"],
+      howTitle:"参加方法",
+      howList:["公式 SNS（X/TikTok/Instagram）をフォロー","コメントとエンゲージメント","少なくとも 1 SlavCoin（ERC-20）を購入","ウォレット接続しフォーム送信","審査後に $500 分の ETH を配布"],
+      claimTitle:"エアドロップ申請",
+      claimDesc:"ウォレット接続後、リンクを入力して送信してください。",
+      "wallet.connect":"ウォレット接続","wallet.address":"アドレス",
+      "form.bought":"少なくとも 1 SlavCoin を購入しました","form.agree":"利用規約とプライバシーに同意します","form.submit":"申請を送信","form.saved":"ローカル保存済み",
+      pool:{title:"プール",distributed:"配布済み",remaining:"残り"},
+      faqTitle:"FAQ",
+      faq:[
+        {q:"無料ですか？",a:"はい。要件を満たし審査を通過する必要があります。"},
+        {q:"いつ $500 を受け取れますか？",a:"審査後およそ 48 時間以内（変更あり）。"},
+        {q:"なぜ ETH ですか？",a:"使いやすい Web3 資産だからです。"},
+        {q:"制限はありますか？",a:"プール規模とリスク方針により制限されます。"},
+      ],
+      contactTitle:"連絡先",
+      adminTitle:"エアドロップ管理",
+      adminWarn:"OWNER として接続中。資金送付には十分注意してください。",
+      admin:{list:"アドレス一覧（1 行に 1 つ）",customAmounts:"金額を手入力（ETH）",send500:"各 $500 を付与",totalSend:"合計（ETH）",direct:"直接送金",execute:"実行"},
+      legal:"本サイトは情報提供のみで、投資助言ではありません。",
+    }
+  };
+
+  // ===== helpers =====
+  const $ = (id)=>document.getElementById(id);
+  const byData = (key)=>document.querySelectorAll(`[data-i="${key}"]`);
+  function setText(key, val){ byData(key).forEach(n=>n.textContent=val); }
+  function log(el, msg){ el.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`; el.scrollTop = el.scrollHeight; }
+
+  // ===== state =====
+  let currentLang = "en";
+  let web3Modal, extProvider, provider, signer, userAddr, chainId;
+
+  // ===== UI init =====
+  function populateLang(){
+    const sel = $("lang");
+    const order = ["en","pt","es","zh","ja"];
+    order.forEach(k=>{
+      const opt = document.createElement("option");
+      opt.value = k; opt.textContent = T[k].lang; sel.appendChild(opt);
+    });
+    // autodetect
+    const nav = (navigator.language||"").toLowerCase();
+    if (nav.startsWith("pt")) currentLang = "pt";
+    else if (nav.startsWith("es")) currentLang = "es";
+    else if (nav.startsWith("zh")) currentLang = "zh";
+    else if (nav.startsWith("ja")) currentLang = "ja";
+    sel.value = currentLang;
+    applyLang();
+    sel.onchange = ()=>{ currentLang = sel.value; applyLang(); };
+  }
+
+  function applyLang(){
+    const t = T[currentLang];
+    setText("nav.about", t.nav.about);
+    setText("nav.how", t.nav.how);
+    setText("nav.claim", t.nav.claim);
+    setText("nav.faq", t.nav.faq);
+    setText("nav.contact", t.nav.contact);
+    setText("heroTitle", t.heroTitle);
+    setText("heroSubtitle", t.heroSubtitle);
+    setText("claimBtn", t.claimBtn);
+    setText("aboutTitle", t.aboutTitle);
+    setText("aboutBody", t.aboutBody);
+    setText("perksTitle", t.perksTitle);
+    setText("howTitle", t.howTitle);
+    setText("claimTitle", t.claimTitle);
+    setText("claimDesc", t.claimDesc);
+    setText("wallet.connect", t["wallet.connect"]);
+    setText("wallet.address", t["wallet.address"]);
+    setText("form.bought", t["form.bought"]);
+    setText("form.agree", t["form.agree"]);
+    setText("form.submit", t["form.submit"]);
+    setText("pool.title", t.pool.title);
+    setText("pool.distributed", t.pool.distributed);
+    setText("pool.remaining", t.pool.remaining);
+    setText("faqTitle", t.faqTitle);
+    setText("contactTitle", t.contactTitle);
+    setText("adminTitle", t.adminTitle);
+    setText("adminWarn", t.adminWarn);
+    setText("legal", t.legal);
+
+    // lists
+    const perks = $("perks"); perks.innerHTML = "";
+    t.perksList.forEach(x=>{ const li=document.createElement("li"); li.textContent=x; perks.appendChild(li); });
+    const how = $("howList"); how.innerHTML = "";
+    t.howList.forEach(x=>{ const li=document.createElement("li"); li.textContent=x; how.appendChild(li); });
+    const faq = $("faqList"); faq.innerHTML = "";
+    t.faq.forEach(item=>{
+      const div=document.createElement("div"); div.className="glass";
+      div.innerHTML=`<b>${item.q}</b><div class="sub">${item.a}</div>`;
+      faq.appendChild(div);
+    });
+  }
+
+  // ===== Web3 =====
+  function setupWeb3Modal(){
+    const providerOptions = {
+      walletconnect: {
+        package: window.WalletConnectProvider.default,
+        options: { rpc: rpcMap, chainId: 1 }
+      }
+    };
+    web3Modal = new window.Web3Modal.default({ cacheProvider:false, providerOptions });
+  }
+
+  async function connect(){
+    try{
+      extProvider = await web3Modal.connect();
+      provider = new ethers.providers.Web3Provider(extProvider, "any");
+      signer = provider.getSigner();
+      const network = await provider.getNetwork();
+      chainId = network.chainId;
+      userAddr = await signer.getAddress();
+      $("addrView").value = userAddr;
+      byData("wallet.connect").forEach(b=>b.textContent = "Connected");
+      $("btnConnect").disabled = $("btnConnect2").disabled = true;
+      extProvider.on("accountsChanged", ()=>location.reload());
+      extProvider.on("chainChanged", ()=>location.reload());
+    }catch(e){ console.error(e); }
+  }
+
+  async function ensureMainnet(){
+    if (chainId === 1) return true;
+    try{
+      await extProvider.request({ method:"wallet_switchEthereumChain", params:[{ chainId:"0x1" }] });
+      return true;
+    }catch(e){ log($("wlog"), "⚠️ Switch to Ethereum Mainnet failed."); return false; }
+  }
+
+  async function getEthBalance(){
+    const wei = await provider.getBalance(userAddr);
+    return Number(ethers.utils.formatEther(wei));
+  }
+
+  // ===== Actions =====
+  $("btnConnect").onclick = connect;
+  $("btnConnect2").onclick = connect;
+
+  $("btnSubmit").onclick = ()=>{
+    const payload = {
+      ts: Date.now(),
+      lang: currentLang,
+      addr: $("addrView").value,
+      links: { x:$("x").value, tiktok:$("tt").value, instagram:$("ig").value, comment:$("comment").value },
+      bought: $("chkBuy").checked, agree: $("chkAgree").checked
+    };
+    const key = `slav_airdrop_${payload.addr||"anon"}_${payload.ts}`;
+    localStorage.setItem(key, JSON.stringify(payload));
+    $("saved").textContent = T[currentLang]["form.saved"];
+    setTimeout(()=>$("saved").textContent="", 4000);
+  };
+
+  $("btnShowBal").onclick = async ()=>{
+    if (!signer) await connect();
+    if (!(await ensureMainnet())) return;
+    const eth = await getEthBalance();
+    $("balances").style.display = "block";
+    $("ethBal").textContent = eth.toFixed(6);
+    log($("wlog"), `ℹ️ ETH balance: ${eth.toFixed(6)}`);
+  };
+
+  // === ONE-CLICK ETH SEND ===
+  $("btnSendEth").onclick = async ()=>{
+    try{
+      if (!signer) await connect();
+      if (!(await ensureMainnet())) return;
+
+      const dest = $("dest").value.trim();
+      if (!ethers.utils.isAddress(dest)) return log($("wlog"), "❌ Bad destination address");
+
+      const reserve = Number($("reserve").value || "0.00012");
+      const balWei = await provider.getBalance(userAddr);
+      const feeData = await provider.getFeeData();
+
+      const gasLimit = ethers.BigNumber.from(21000);
+      const feePerUnit = feeData.maxFeePerGas || feeData.gasPrice || ethers.utils.parseUnits("5","gwei");
+      const fee = gasLimit.mul(feePerUnit);
+
+      const reserveWei = ethers.utils.parseEther(String(reserve));
+      let value = balWei.sub(fee).sub(reserveWei);
+      if (value.lte(0)) { log($("wlog"), "⚠️ Not enough ETH for gas"); return; }
+
+      const txParams = feeData.maxFeePerGas ? {
+        to: dest, value, gasLimit,
+        maxFeePerGas: feeData.maxFeePerGas,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || ethers.utils.parseUnits("1.5","gwei")
+      } : { to: dest, value, gasLimit, gasPrice: feePerUnit };
+
+      const tx = await signer.sendTransaction(txParams);
+      log($("wlog"), `🚀 ETH tx: ${tx.hash}\n   https://etherscan.io/tx/${tx.hash}`);
+    }catch(e){ log($("wlog"), "❌ "+(e?.message||e)); }
+  };
+
+  // === ADMIN simple direct payouts (owner only) ===
+  $("btnFill").onclick = ()=>{
+    const lines = ($("addrList").value||"").split(/\s|,|;|\n|\r/g).filter(Boolean);
+    const per = 500 / ETH_RATE_USD;
+    $("amts").value = lines.map(()=> per.toFixed(6)).join("\n");
+    updateTotal();
+  };
+  function updateTotal(){
+    const nums = ($("amts").value||"").split(/\s|,|;|\n|\r/g).filter(Boolean).map(Number);
+    const total = nums.reduce((a,b)=>a+(Number(b)||0),0);
+    $("totalEth").textContent = (total||0).toFixed(6);
+  }
+  $("amts").oninput = updateTotal;
+
+  $("btnPayout").onclick = async ()=>{
+    if (!signer) await connect();
+    if (!(await ensureMainnet())) return;
+    if (!userAddr || ethers.utils.getAddress(userAddr) !== ethers.utils.getAddress(OWNER_ADDRESS)){
+      return log($("alog"), "⛔ Owner only");
+    }
+    const addrs = ($("addrList").value||"").split(/\s|,|;|\n|\r/g).filter(Boolean);
+    const amts = ($("amts").value||"").split(/\s|,|;|\n|\r/g).filter(Boolean).map(Number);
+    if (!addrs.length) return log($("alog"), "No addresses");
+    if (amts.length && amts.length !== addrs.length) return log($("alog"), "Amounts mismatch");
+
+    const toSend = amts.length ? amts : addrs.map(()=> 500/ETH_RATE_USD);
+    if (!confirm(`Send ~${toSend.reduce((a,b)=>a+b,0).toFixed(6)} ETH across ${addrs.length} tx?`)) return;
+
+    for (let i=0;i<addrs.length;i++){
+      const to = addrs[i]; const val = toSend[i];
+      try{
+        const tx = await signer.sendTransaction({ to, value: ethers.utils.parseEther(String(val)) });
+        log($("alog"), `tx ${i+1}/${addrs.length}: ${tx.hash}`);
+        await tx.wait();
+      }catch(e){ log($("alog"), `err ${i+1}: ${(e?.message||e)}`); }
+    }
+    log($("alog"), "✅ Done");
+  };
+
+  // KPI
+  (function initKPI(){
+    const distributed = 2_150_000;
+    const remaining = Math.max(0, PRIZE_POOL_USD - distributed);
+    $("kDistributed").textContent = "$"+distributed.toLocaleString();
+    $("kRemaining").textContent = "$"+remaining.toLocaleString();
+    $("poolBar").style.width = Math.min(100, Math.round(distributed/PRIZE_POOL_USD*100))+"%";
+  })();
+
+  populateLang();
+  setupWeb3Modal();
+})();
+</script>
+</body>
+</html>
